@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -30,6 +30,7 @@ export default function WizardScreen() {
     suiteNumber: string;
     suiteId: string;
     id: string;
+    edit?: string;
   }>();
 
   const visitId = params.visitId;
@@ -41,12 +42,71 @@ export default function WizardScreen() {
   const [answers, setAnswers] = useState<WizardAnswers>({});
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [photoBase64, setPhotoBase64] = useState<string | null>(null);
+  const [hasExistingPhoto, setHasExistingPhoto] = useState(false);
+  const [isEditing, setIsEditing] = useState(params.edit === "true");
+  const [loadingVisit, setLoadingVisit] = useState(params.edit === "true");
   const [showCamera, setShowCamera] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
 
   const currentStep = WIZARD_STEPS[step];
+
+  useEffect(() => {
+    if (!visitId || params.edit !== "true") return;
+
+    async function loadVisit() {
+      setLoadingVisit(true);
+
+      const { data: visit, error } = await supabase
+        .from("suite_visits")
+        .select("status, cleaned, filter_changed, operating_normally, notes")
+        .eq("id", visitId)
+        .single();
+
+      if (error || !visit) {
+        Alert.alert("Error", "Could not load suite visit.");
+        router.back();
+        return;
+      }
+
+      if (visit.status !== "completed") {
+        Alert.alert("Cannot edit", "Only completed suites can be edited.");
+        router.back();
+        return;
+      }
+
+      setIsEditing(true);
+      setAnswers({
+        cleaned: visit.cleaned ?? undefined,
+        filter_changed: visit.filter_changed ?? undefined,
+        operating_normally: visit.operating_normally ?? undefined,
+        notes: visit.notes ?? undefined,
+      });
+
+      const { data: photos } = await supabase
+        .from("visit_photos")
+        .select("storage_path")
+        .eq("suite_visit_id", visitId)
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+      if (photos?.[0]) {
+        const { data: signed } = await supabase.storage
+          .from("visit-photos")
+          .createSignedUrl(photos[0].storage_path, 3600);
+
+        if (signed?.signedUrl) {
+          setPhotoUri(signed.signedUrl);
+          setHasExistingPhoto(true);
+        }
+      }
+
+      setLoadingVisit(false);
+    }
+
+    loadVisit();
+  }, [visitId, params.edit]);
 
   async function saveProgress(partial: WizardAnswers) {
     const merged = { ...answers, ...partial };
@@ -56,7 +116,7 @@ export default function WizardScreen() {
     const updates = {
       ...partial,
       visited_by: user?.id,
-      status: "in_progress" as const,
+      ...(isEditing ? {} : { status: "in_progress" as const }),
     };
 
     const { error } = await supabase.from("suite_visits").update(updates).eq("id", visitId!);
@@ -74,7 +134,7 @@ export default function WizardScreen() {
     if (step < WIZARD_STEPS.length - 1) {
       if (step === 2) {
         setStep(3);
-        setShowCamera(true);
+        if (!photoUri) setShowCamera(true);
       } else {
         setStep(step + 1);
       }
@@ -82,7 +142,9 @@ export default function WizardScreen() {
   }
 
   async function handleComplete() {
-    if (!photoUri) {
+    const hasNewPhoto = photoUri && !photoUri.startsWith("http");
+
+    if (!photoUri || (!hasNewPhoto && !hasExistingPhoto)) {
       Alert.alert("Photo required", "Please take a photo to complete this visit.");
       return;
     }
@@ -112,8 +174,9 @@ export default function WizardScreen() {
       }
 
       const deficiencies = getDeficienciesFromAnswers(answers);
+      await supabase.from("deficiencies").delete().eq("suite_visit_id", visitId);
+
       for (const d of deficiencies) {
-        await supabase.from("deficiencies").delete().eq("suite_visit_id", visitId).eq("category", d.category);
         const { error: dError } = await supabase.from("deficiencies").insert({
           suite_visit_id: visitId,
           category: d.category,
@@ -127,27 +190,35 @@ export default function WizardScreen() {
         }
       }
 
-      await uploadVisitPhoto(photoUri, maintenanceId, suiteId, visitId, photoBase64);
+      if (hasNewPhoto) {
+        await uploadVisitPhoto(photoUri, maintenanceId, suiteId, visitId, photoBase64);
+      }
+
       router.back();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Photo upload failed";
-      try {
-        const base64 =
-          photoBase64 ??
-          (await FileSystem.readAsStringAsync(photoUri, {
-            encoding: FileSystem.EncodingType.Base64,
-          }));
-        await addToOutbox({
-          type: "upload_photo",
-          payload: { visitId, maintenanceId, suiteId, base64 },
-        });
-        Alert.alert(
-          "Photo saved locally",
-          `Visit marked complete but photo upload failed:\n${message}\n\nPhoto queued to sync later.`
-        );
-        router.back();
-      } catch {
-        Alert.alert("Upload failed", message);
+
+      if (hasNewPhoto && photoUri) {
+        try {
+          const base64 =
+            photoBase64 ??
+            (await FileSystem.readAsStringAsync(photoUri, {
+              encoding: FileSystem.EncodingType.Base64,
+            }));
+          await addToOutbox({
+            type: "upload_photo",
+            payload: { visitId, maintenanceId, suiteId, base64 },
+          });
+          Alert.alert(
+            "Photo saved locally",
+            `Visit updated but photo upload failed:\n${message}\n\nPhoto queued to sync later.`
+          );
+          router.back();
+        } catch {
+          Alert.alert("Upload failed", message);
+        }
+      } else {
+        Alert.alert("Save failed", message);
       }
     } finally {
       setSubmitting(false);
@@ -160,8 +231,18 @@ export default function WizardScreen() {
     if (photo?.uri) {
       setPhotoUri(photo.uri);
       setPhotoBase64(photo.base64 ?? null);
+      setHasExistingPhoto(false);
       setShowCamera(false);
     }
+  }
+
+  if (loadingVisit) {
+    return (
+      <View style={[styles.container, styles.centered]}>
+        <ActivityIndicator size="large" color="#3b82f6" />
+        <Text style={styles.loadingText}>Loading visit...</Text>
+      </View>
+    );
   }
 
   if (showCamera) {
@@ -204,6 +285,7 @@ export default function WizardScreen() {
             onPress={() => {
               setPhotoUri(null);
               setPhotoBase64(null);
+              setHasExistingPhoto(false);
               setShowCamera(true);
             }}
           >
@@ -217,13 +299,22 @@ export default function WizardScreen() {
             {submitting ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.buttonText}>Complete ✓</Text>
+              <Text style={styles.buttonText}>{isEditing ? "Save Changes ✓" : "Complete ✓"}</Text>
             )}
           </TouchableOpacity>
         </View>
       </View>
     );
   }
+
+  const currentAnswer =
+    currentStep?.key === "cleaned"
+      ? answers.cleaned
+      : currentStep?.key === "filter_changed"
+        ? answers.filter_changed
+        : currentStep?.key === "operating_normally"
+          ? answers.operating_normally
+          : undefined;
 
   return (
     <View style={styles.container}>
@@ -234,9 +325,17 @@ export default function WizardScreen() {
         <Text style={styles.backText}>← {step > 0 ? "Back" : "Cancel"}</Text>
       </TouchableOpacity>
 
-      <Text style={styles.suiteLabel}>Suite {suiteNumber}</Text>
+      <Text style={styles.suiteLabel}>
+        Suite {suiteNumber}{isEditing ? " · Editing" : ""}
+      </Text>
       <Text style={styles.stepIndicator}>Step {step + 1} of 4</Text>
       <Text style={styles.question}>{currentStep?.question}</Text>
+
+      {isEditing && currentAnswer !== undefined && currentStep?.key !== "photo" && (
+        <Text style={styles.currentAnswer}>
+          Current answer: {currentAnswer ? "Yes" : "No"}
+        </Text>
+      )}
 
       {currentStep?.key === "operating_normally" && answers.operating_normally === false && (
         <TextInput
@@ -258,17 +357,32 @@ export default function WizardScreen() {
           </TouchableOpacity>
         </View>
       )}
+
+      {isEditing && step < 3 && photoUri && (
+        <TouchableOpacity style={styles.skipToPhotoButton} onPress={() => setStep(3)}>
+          <Text style={styles.skipToPhotoText}>Skip to photo review</Text>
+        </TouchableOpacity>
+      )}
+
+      {isEditing && step === 3 && !photoUri && (
+        <TouchableOpacity style={styles.skipToPhotoButton} onPress={() => setShowCamera(true)}>
+          <Text style={styles.skipToPhotoText}>Take new photo</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#fff", padding: 24, paddingTop: 60 },
+  centered: { justifyContent: "center", alignItems: "center" },
+  loadingText: { marginTop: 12, fontSize: 16, color: "#71717a" },
   backButton: { marginBottom: 24 },
   backText: { fontSize: 16, color: "#3b82f6" },
   suiteLabel: { fontSize: 16, color: "#71717a", marginBottom: 8 },
   stepIndicator: { fontSize: 14, color: "#a1a1aa", marginBottom: 16 },
   question: { fontSize: 32, fontWeight: "700", color: "#18181b", marginBottom: 40, lineHeight: 40 },
+  currentAnswer: { fontSize: 16, color: "#71717a", marginTop: -24, marginBottom: 24 },
   buttonRow: { flexDirection: "row", gap: 16, marginTop: "auto", marginBottom: 40 },
   yesButton: {
     flex: 1,
@@ -296,6 +410,12 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     minHeight: 80,
   },
+  skipToPhotoButton: {
+    alignSelf: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  skipToPhotoText: { color: "#3b82f6", fontSize: 16, fontWeight: "600" },
   cameraContainer: { flex: 1 },
   camera: { flex: 1 },
   cameraControls: { position: "absolute", bottom: 40, left: 0, right: 0, alignItems: "center" },

@@ -91,8 +91,16 @@ export default function SuiteGridScreen() {
   }
 
   function handleSuitePress(visit: VisitTile) {
-    if (visit.status !== "pending" && visit.status !== "in_progress") return;
-    router.push(`/maintenance/${maintenanceId}/wizard/${visit.id}?suiteNumber=${visit.suite_number}&suiteId=${visit.suite_id}`);
+    const base = `/maintenance/${maintenanceId}/wizard/${visit.id}?suiteNumber=${visit.suite_number}&suiteId=${visit.suite_id}`;
+
+    if (visit.status === "pending" || visit.status === "in_progress") {
+      router.push(base);
+      return;
+    }
+
+    if (visit.status === "completed") {
+      router.push(`${base}&edit=true`);
+    }
   }
 
   function handleLongPress(visit: VisitTile) {
