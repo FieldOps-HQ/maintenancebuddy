@@ -111,6 +111,9 @@ create table public.visit_photos (
 create index idx_suites_building on public.suites(building_id);
 create index idx_maintenances_building on public.maintenances(building_id);
 create index idx_maintenances_status on public.maintenances(status);
+create unique index idx_one_active_maintenance_per_building
+  on public.maintenances (building_id)
+  where status in ('scheduled', 'in_progress');
 create index idx_suite_visits_maintenance on public.suite_visits(maintenance_id);
 create index idx_suite_visits_status on public.suite_visits(status);
 create index idx_maintenance_assignments_technician on public.maintenance_assignments(technician_id);

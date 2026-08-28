@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { maintenanceSchema } from "@maintenancebuddy/shared";
 import { createClient } from "@/lib/supabase/client";
@@ -20,17 +21,40 @@ interface Technician {
   email: string;
 }
 
+interface ActiveMaintenance {
+  id: string;
+  building_id: string;
+  status: string;
+}
+
+const ACTIVE_MAINTENANCE_MESSAGE =
+  "This building already has an active maintenance. Complete or cancel it before scheduling another.";
+
 export function MaintenanceForm({
   buildings,
   technicians,
+  activeMaintenances,
 }: {
   buildings: Building[];
   technicians: Technician[];
+  activeMaintenances: ActiveMaintenance[];
 }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [selectedTechs, setSelectedTechs] = useState<string[]>([]);
+  const [selectedBuildingId, setSelectedBuildingId] = useState("");
+
+  const activeByBuilding = useMemo(
+    () => new Map(activeMaintenances.map((m) => [m.building_id, m])),
+    [activeMaintenances]
+  );
+
+  const selectedActiveMaintenance = selectedBuildingId
+    ? activeByBuilding.get(selectedBuildingId)
+    : undefined;
+
+  const availableBuildings = buildings.filter((b) => !activeByBuilding.has(b.id));
 
   function toggleTech(id: string) {
     setSelectedTechs((prev) =>
@@ -59,6 +83,12 @@ export function MaintenanceForm({
       return;
     }
 
+    if (activeByBuilding.has(parsed.data.building_id)) {
+      setError(ACTIVE_MAINTENANCE_MESSAGE);
+      setLoading(false);
+      return;
+    }
+
     const supabase = createClient();
     const { data: maintenance, error: insertError } = await supabase
       .from("maintenances")
@@ -72,7 +102,11 @@ export function MaintenanceForm({
       .single();
 
     if (insertError || !maintenance) {
-      setError(insertError?.message ?? "Failed to create maintenance");
+      setError(
+        insertError?.code === "23505"
+          ? ACTIVE_MAINTENANCE_MESSAGE
+          : insertError?.message ?? "Failed to create maintenance"
+      );
       setLoading(false);
       return;
     }
@@ -98,13 +132,37 @@ export function MaintenanceForm({
           id="building_id"
           name="building_id"
           required
+          value={selectedBuildingId}
+          onChange={(e) => setSelectedBuildingId(e.target.value)}
           className="flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm"
         >
           <option value="">Select a building</option>
-          {buildings.map((b) => (
-            <option key={b.id} value={b.id}>{b.name}</option>
-          ))}
+          {buildings.map((b) => {
+            const active = activeByBuilding.get(b.id);
+            return (
+              <option key={b.id} value={b.id} disabled={Boolean(active)}>
+                {b.name}
+                {active ? " (active maintenance)" : ""}
+              </option>
+            );
+          })}
         </select>
+        {selectedActiveMaintenance && (
+          <p className="text-sm text-amber-700">
+            {ACTIVE_MAINTENANCE_MESSAGE}{" "}
+            <Link
+              href={`/maintenances/${selectedActiveMaintenance.id}`}
+              className="font-medium underline"
+            >
+              View active maintenance
+            </Link>
+          </p>
+        )}
+        {buildings.length > 0 && availableBuildings.length === 0 && (
+          <p className="text-sm text-zinc-500">
+            All buildings currently have an active maintenance scheduled or in progress.
+          </p>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-4">
@@ -148,7 +206,10 @@ export function MaintenanceForm({
       </div>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
-      <Button type="submit" disabled={loading || buildings.length === 0}>
+      <Button
+        type="submit"
+        disabled={loading || availableBuildings.length === 0 || Boolean(selectedActiveMaintenance)}
+      >
         {loading ? "Creating..." : "Schedule Maintenance"}
       </Button>
     </form>
