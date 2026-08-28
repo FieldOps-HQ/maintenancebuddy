@@ -43,6 +43,19 @@ export default function RootLayout() {
           description,
         });
       },
+      addSuite: async (payload) => {
+        const { buildingId, suite } = payload as {
+          buildingId: string;
+          suite: {
+            suite_number: string;
+            floor?: string;
+            filter_size?: string;
+            filter_quantity?: number;
+            hvac_location_notes?: string;
+          };
+        };
+        await supabase.from("suites").insert({ ...suite, building_id: buildingId });
+      },
     });
   }, []);
 

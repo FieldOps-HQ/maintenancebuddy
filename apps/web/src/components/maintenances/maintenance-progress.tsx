@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { MOBILE_STATUS_COLORS, SUITE_VISIT_STATUS_LABELS } from "@maintenancebuddy/shared";
 import type { SuiteVisitStatus } from "@maintenancebuddy/shared";
@@ -9,6 +9,40 @@ import {
   SuiteVisitDetailDialog,
   type SuiteVisitDetailData,
 } from "@/components/maintenances/suite-visit-detail-dialog";
+
+function mapVisitRow(v: {
+  id: string;
+  status: string;
+  cleaned: boolean | null;
+  filter_changed: boolean | null;
+  operating_normally: boolean | null;
+  visited_at: string | null;
+  notes: string | null;
+  suite: {
+    suite_number: string;
+    floor: string | null;
+    filter_size: string | null;
+    filter_quantity: number | null;
+  } | null;
+  deficiencies?: { id: string; category: string; description: string }[];
+  visit_photos?: { id: string; storage_path: string }[];
+}): SuiteVisitDetailData {
+  return {
+    id: v.id,
+    status: v.status as SuiteVisitStatus,
+    suite_number: v.suite?.suite_number ?? "",
+    floor: v.suite?.floor ?? null,
+    filter_size: v.suite?.filter_size ?? null,
+    filter_quantity: v.suite?.filter_quantity ?? null,
+    cleaned: v.cleaned,
+    filter_changed: v.filter_changed,
+    operating_normally: v.operating_normally,
+    visited_at: v.visited_at,
+    notes: v.notes,
+    deficiencies: v.deficiencies ?? [],
+    photos: v.visit_photos ?? [],
+  };
+}
 
 export function MaintenanceProgress({
   maintenanceId,
@@ -19,6 +53,29 @@ export function MaintenanceProgress({
 }) {
   const [visits, setVisits] = useState(initialVisits);
   const [selectedVisit, setSelectedVisit] = useState<SuiteVisitDetailData | null>(null);
+
+  const fetchVisits = useCallback(async () => {
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("suite_visits")
+      .select(`
+        id,
+        status,
+        cleaned,
+        filter_changed,
+        operating_normally,
+        visited_at,
+        notes,
+        suite:suites(suite_number, floor, filter_size, filter_quantity),
+        deficiencies(id, category, description),
+        visit_photos(id, storage_path)
+      `)
+      .eq("maintenance_id", maintenanceId);
+
+    if (data) {
+      setVisits(data.map(mapVisitRow));
+    }
+  }, [maintenanceId]);
 
   useEffect(() => {
     setVisits(initialVisits);
@@ -64,12 +121,24 @@ export function MaintenanceProgress({
           );
         }
       )
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "suite_visits",
+          filter: `maintenance_id=eq.${maintenanceId}`,
+        },
+        () => {
+          fetchVisits();
+        }
+      )
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [maintenanceId]);
+  }, [maintenanceId, fetchVisits]);
 
   return (
     <>

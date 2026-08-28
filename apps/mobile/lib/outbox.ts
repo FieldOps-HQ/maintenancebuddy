@@ -5,7 +5,7 @@ const OUTBOX_KEY = "maintenancebuddy_outbox";
 
 export interface OutboxItem {
   id: string;
-  type: "update_visit" | "upload_photo" | "create_deficiency";
+  type: "update_visit" | "upload_photo" | "create_deficiency" | "add_suite";
   payload: Record<string, unknown>;
   createdAt: string;
 }
@@ -35,6 +35,7 @@ export async function processOutbox(
     updateVisit: (payload: Record<string, unknown>) => Promise<void>;
     uploadPhoto: (payload: Record<string, unknown>) => Promise<void>;
     createDeficiency: (payload: Record<string, unknown>) => Promise<void>;
+    addSuite: (payload: Record<string, unknown>) => Promise<void>;
   }
 ) {
   const outbox = await getOutbox();
@@ -43,6 +44,7 @@ export async function processOutbox(
       if (item.type === "update_visit") await handlers.updateVisit(item.payload);
       if (item.type === "upload_photo") await handlers.uploadPhoto(item.payload);
       if (item.type === "create_deficiency") await handlers.createDeficiency(item.payload);
+      if (item.type === "add_suite") await handlers.addSuite(item.payload);
       await removeFromOutbox(item.id);
     } catch {
       break;

@@ -23,6 +23,8 @@ export const suiteSchema = z.object({
   hvac_location_notes: z.string().optional(),
 });
 
+export const technicianAddSuiteSchema = suiteSchema;
+
 export const maintenanceSchema = z.object({
   building_id: z.string().uuid(),
   start_date: z.string().min(1),
@@ -59,6 +61,7 @@ export const wizardStepSchema = z.object({
 export type BuildingInput = z.infer<typeof buildingSchema>;
 export type BuildingContactInput = z.infer<typeof buildingContactSchema>;
 export type SuiteInput = z.infer<typeof suiteSchema>;
+export type TechnicianAddSuiteInput = z.infer<typeof technicianAddSuiteSchema>;
 export type MaintenanceInput = z.infer<typeof maintenanceSchema>;
 export type MaintenanceUpdateInput = z.infer<typeof maintenanceUpdateSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
