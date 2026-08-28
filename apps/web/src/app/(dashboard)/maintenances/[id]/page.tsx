@@ -1,10 +1,10 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { formatDate } from "@/lib/utils";
-import { Badge } from "@/components/ui/badge";
+import { ACTIVE_MAINTENANCE_STATUSES } from "@maintenancebuddy/shared";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MaintenanceProgress } from "@/components/maintenances/maintenance-progress";
 import { DownloadReportButton } from "@/components/maintenances/download-report-button";
+import { MaintenanceHeader } from "@/components/maintenances/maintenance-actions";
 
 export default async function MaintenanceDetailPage({
   params,
@@ -14,16 +14,28 @@ export default async function MaintenanceDetailPage({
   const { id } = await params;
   const supabase = await createClient();
 
-  const { data: maintenance } = await supabase
-    .from("maintenances")
-    .select(`
-      *,
-      building:buildings(*),
-      assignments:maintenance_assignments(technician:profiles(full_name, email)),
-      suite_visits(*, suite:suites(*), deficiencies(*), visit_photos(*))
-    `)
-    .eq("id", id)
-    .single();
+  const [{ data: maintenance }, { data: technicians }, { data: activeMaintenances }] =
+    await Promise.all([
+      supabase
+        .from("maintenances")
+        .select(`
+          *,
+          building:buildings(*),
+          assignments:maintenance_assignments(technician_id, technician:profiles(full_name, email)),
+          suite_visits(*, suite:suites(*), deficiencies(*), visit_photos(*))
+        `)
+        .eq("id", id)
+        .single(),
+      supabase
+        .from("profiles")
+        .select("id, full_name, email")
+        .eq("role", "technician")
+        .order("full_name"),
+      supabase
+        .from("maintenances")
+        .select("id, building_id")
+        .in("status", ACTIVE_MAINTENANCE_STATUSES),
+    ]);
 
   if (!maintenance) notFound();
 
@@ -42,21 +54,23 @@ export default async function MaintenanceDetailPage({
 
   return (
     <div className="space-y-8">
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">{maintenance.building?.name}</h1>
-          <p className="text-zinc-500">
-            {formatDate(maintenance.start_date)} – {formatDate(maintenance.end_date)}
-          </p>
-          <div className="mt-2 flex items-center gap-2">
-            <Badge variant={maintenance.status === "completed" ? "success" : "warning"}>
-              {maintenance.status.replace("_", " ")}
-            </Badge>
-            {maintenance.notes && (
-              <span className="text-sm text-zinc-500">{maintenance.notes}</span>
-            )}
-          </div>
-        </div>
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <MaintenanceHeader
+          maintenance={{
+            id: maintenance.id,
+            building_id: maintenance.building_id,
+            start_date: maintenance.start_date,
+            end_date: maintenance.end_date,
+            status: maintenance.status,
+            notes: maintenance.notes,
+          }}
+          buildingName={maintenance.building?.name ?? "Maintenance"}
+          technicians={technicians ?? []}
+          assignedTechnicianIds={
+            maintenance.assignments?.map((a) => a.technician_id).filter(Boolean) ?? []
+          }
+          activeMaintenances={activeMaintenances ?? []}
+        />
         <DownloadReportButton maintenanceId={id} />
       </div>
 

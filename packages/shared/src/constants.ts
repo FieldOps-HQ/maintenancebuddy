@@ -2,6 +2,13 @@ import type { DeficiencyCategory, MaintenanceStatus, SuiteVisitStatus } from "./
 
 export const ACTIVE_MAINTENANCE_STATUSES: MaintenanceStatus[] = ["scheduled", "in_progress"];
 
+export const MAINTENANCE_STATUS_LABELS: Record<MaintenanceStatus, string> = {
+  scheduled: "Scheduled",
+  in_progress: "In Progress",
+  completed: "Completed",
+  cancelled: "Cancelled",
+};
+
 export const SUITE_VISIT_STATUS_LABELS: Record<SuiteVisitStatus, string> = {
   pending: "Pending",
   completed: "Completed",

@@ -31,6 +31,19 @@ export const maintenanceSchema = z.object({
   technician_ids: z.array(z.string().uuid()).min(1, "Assign at least one technician"),
 });
 
+export const maintenanceUpdateSchema = z
+  .object({
+    start_date: z.string().min(1),
+    end_date: z.string().min(1),
+    notes: z.string().optional(),
+    status: z.enum(["scheduled", "in_progress", "completed", "cancelled"]),
+    technician_ids: z.array(z.string().uuid()).min(1, "Assign at least one technician"),
+  })
+  .refine((data) => data.end_date >= data.start_date, {
+    message: "End date must be on or after start date",
+    path: ["end_date"],
+  });
+
 export const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(6),
@@ -47,5 +60,6 @@ export type BuildingInput = z.infer<typeof buildingSchema>;
 export type BuildingContactInput = z.infer<typeof buildingContactSchema>;
 export type SuiteInput = z.infer<typeof suiteSchema>;
 export type MaintenanceInput = z.infer<typeof maintenanceSchema>;
+export type MaintenanceUpdateInput = z.infer<typeof maintenanceUpdateSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type WizardStepInput = z.infer<typeof wizardStepSchema>;
