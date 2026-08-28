@@ -19,9 +19,10 @@ create table public.profiles (
 create table public.buildings (
   id uuid primary key default gen_random_uuid(),
   name text not null,
-  address text not null,
+  street_number text not null,
+  street text not null,
   city text not null,
-  notes text,
+  postal_code text not null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );

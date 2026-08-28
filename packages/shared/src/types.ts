@@ -31,9 +31,10 @@ export interface Profile {
 export interface Building {
   id: string;
   name: string;
-  address: string;
+  street_number: string;
+  street: string;
   city: string;
-  notes: string | null;
+  postal_code: string;
   created_at: string;
   updated_at: string;
 }

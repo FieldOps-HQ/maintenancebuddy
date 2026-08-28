@@ -5,10 +5,11 @@ import { MaintenanceReportDocument } from "@/components/reports/maintenance-repo
 import { formatDate } from "@/lib/utils";
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ maintenanceId: string }> }
 ) {
   const { maintenanceId } = await params;
+  const download = request.nextUrl.searchParams.get("download") === "true";
   const supabase = await createClient();
 
   const { data: maintenance } = await supabase
@@ -43,7 +44,7 @@ export async function GET(
   return new NextResponse(new Uint8Array(buffer), {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="${filename}"`,
+      "Content-Disposition": `${download ? "attachment" : "inline"}; filename="${filename}"`,
     },
   });
 }

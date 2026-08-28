@@ -1,5 +1,5 @@
 import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
-import { SUITE_VISIT_STATUS_LABELS } from "@maintenancebuddy/shared";
+import { SUITE_VISIT_STATUS_LABELS, formatBuildingAddress } from "@maintenancebuddy/shared";
 
 const styles = StyleSheet.create({
   page: { padding: 40, fontSize: 10, fontFamily: "Helvetica" },
@@ -21,7 +21,13 @@ interface ReportProps {
     end_date: string;
     status: string;
     notes: string | null;
-    building: { name: string; address: string; city: string } | null;
+    building: {
+      name: string;
+      street_number: string;
+      street: string;
+      city: string;
+      postal_code: string;
+    } | null;
     assignments: { technician: { full_name: string } | null }[];
     suite_visits: {
       status: string;
@@ -46,7 +52,8 @@ export function MaintenanceReportDocument({ maintenance, filterSummary }: Report
       <Page size="A4" style={styles.page}>
         <Text style={styles.title}>HVAC Maintenance Report</Text>
         <Text style={styles.subtitle}>
-          {maintenance.building?.name} — {maintenance.building?.address}, {maintenance.building?.city}
+          {maintenance.building?.name} —{" "}
+          {maintenance.building ? formatBuildingAddress(maintenance.building) : ""}
         </Text>
 
         <View style={styles.section}>

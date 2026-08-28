@@ -1,10 +1,11 @@
 import { z } from "zod";
 
 export const buildingSchema = z.object({
-  name: z.string().min(1, "Name is required"),
-  address: z.string().min(1, "Address is required"),
+  name: z.string().min(1, "Building name is required"),
+  street_number: z.string().min(1, "Street number is required"),
+  street: z.string().min(1, "Street is required"),
   city: z.string().min(1, "City is required"),
-  notes: z.string().optional(),
+  postal_code: z.string().min(1, "Postal code is required"),
 });
 
 export const buildingContactSchema = z.object({

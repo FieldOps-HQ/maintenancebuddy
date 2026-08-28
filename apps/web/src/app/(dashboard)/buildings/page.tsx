@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { formatBuildingAddress } from "@maintenancebuddy/shared";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Plus } from "lucide-react";
@@ -58,7 +59,7 @@ export default async function BuildingsPage() {
                     <div>
                       <p className="font-semibold">{building.name}</p>
                       <p className="text-sm text-zinc-500">
-                        {building.address}, {building.city}
+                        {formatBuildingAddress(building)}
                       </p>
                     </div>
                     <div className="text-right text-sm text-zinc-500">

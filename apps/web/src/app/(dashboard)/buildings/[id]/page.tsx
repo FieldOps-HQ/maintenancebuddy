@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ContactForm } from "@/components/buildings/contact-form";
 import { SuiteForm } from "@/components/buildings/suite-form";
 import { CsvImport } from "@/components/buildings/csv-import";
+import { BuildingHeader } from "@/components/buildings/building-form";
 import { Badge } from "@/components/ui/badge";
 
 export default async function BuildingDetailPage({
@@ -29,13 +30,7 @@ export default async function BuildingDetailPage({
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">{building.name}</h1>
-        <p className="text-zinc-500">
-          {building.address}, {building.city}
-        </p>
-        {building.notes && <p className="mt-2 text-sm text-zinc-600">{building.notes}</p>}
-      </div>
+      <BuildingHeader building={building} />
 
       <div className="grid gap-8 lg:grid-cols-2">
         <Card>

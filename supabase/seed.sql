@@ -4,13 +4,14 @@
 -- This seed inserts data that depends on known user IDs from the seed script
 
 -- Demo building
-insert into public.buildings (id, name, address, city, notes)
+insert into public.buildings (id, name, street_number, street, city, postal_code)
 values (
   '11111111-1111-1111-1111-111111111111',
   'Harbour View Condos',
-  '100 Lakeshore Blvd',
+  '100',
+  'Lakeshore Blvd',
   'Toronto',
-  '24-storey tower, 2 HVAC units per suite on floors 2-24'
+  'M5J 2T4'
 );
 
 insert into public.building_contacts (building_id, name, role, phone, email)

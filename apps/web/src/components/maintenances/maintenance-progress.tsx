@@ -2,9 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { SUITE_VISIT_STATUS_COLORS, SUITE_VISIT_STATUS_LABELS } from "@maintenancebuddy/shared";
+import { MOBILE_STATUS_COLORS, SUITE_VISIT_STATUS_LABELS } from "@maintenancebuddy/shared";
 import type { SuiteVisitStatus } from "@maintenancebuddy/shared";
-import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   SuiteVisitDetailDialog,
@@ -81,7 +80,10 @@ export function MaintenanceProgress({
           <div className="flex flex-wrap gap-3 text-xs">
             {(["pending", "completed", "no_access", "blocked_unit"] as SuiteVisitStatus[]).map((s) => (
               <span key={s} className="flex items-center gap-1">
-                <span className={cn("inline-block h-3 w-3 rounded", SUITE_VISIT_STATUS_COLORS[s].split(" ")[0])} />
+                <span
+                  className="inline-block h-3 w-3 rounded"
+                  style={{ backgroundColor: MOBILE_STATUS_COLORS[s] }}
+                />
                 {SUITE_VISIT_STATUS_LABELS[s]}
               </span>
             ))}
@@ -96,10 +98,11 @@ export function MaintenanceProgress({
                   key={visit.id}
                   type="button"
                   onClick={() => setSelectedVisit(visit)}
-                  className={cn(
-                    "flex h-12 cursor-pointer items-center justify-center rounded-lg text-sm font-semibold transition-opacity hover:opacity-80",
-                    SUITE_VISIT_STATUS_COLORS[visit.status]
-                  )}
+                  className="flex h-12 cursor-pointer items-center justify-center rounded-lg text-sm font-semibold transition-opacity hover:opacity-80"
+                  style={{
+                    backgroundColor: MOBILE_STATUS_COLORS[visit.status],
+                    color: visit.status === "pending" ? "#52525b" : "#ffffff",
+                  }}
                   title={`${visit.suite_number}: ${SUITE_VISIT_STATUS_LABELS[visit.status]}`}
                 >
                   {visit.suite_number}
