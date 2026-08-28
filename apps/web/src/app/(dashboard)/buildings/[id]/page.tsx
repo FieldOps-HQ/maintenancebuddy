@@ -5,6 +5,7 @@ import { ContactForm } from "@/components/buildings/contact-form";
 import { SuiteForm } from "@/components/buildings/suite-form";
 import { CsvImport } from "@/components/buildings/csv-import";
 import { BuildingHeader } from "@/components/buildings/building-form";
+import { BuildingMaintenances } from "@/components/buildings/building-maintenances";
 import { Badge } from "@/components/ui/badge";
 
 export default async function BuildingDetailPage({
@@ -23,9 +24,14 @@ export default async function BuildingDetailPage({
 
   if (!building) notFound();
 
-  const [{ data: suites }, { data: contacts }] = await Promise.all([
+  const [{ data: suites }, { data: contacts }, { data: maintenances }] = await Promise.all([
     supabase.from("suites").select("*").eq("building_id", id).order("suite_number"),
     supabase.from("building_contacts").select("*").eq("building_id", id).order("name"),
+    supabase
+      .from("maintenances")
+      .select("id, start_date, end_date, status, suite_visits(status)")
+      .eq("building_id", id)
+      .order("start_date", { ascending: false }),
   ]);
 
   return (
@@ -92,6 +98,8 @@ export default async function BuildingDetailPage({
           </CardContent>
         </Card>
       </div>
+
+      <BuildingMaintenances maintenances={maintenances ?? []} />
     </div>
   );
 }
