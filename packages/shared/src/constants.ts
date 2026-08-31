@@ -48,4 +48,15 @@ export const WIZARD_STEPS = [
   { key: "filter_changed" as const, question: "Filter changed?", deficiency: "filter_not_changed" as DeficiencyCategory },
   { key: "operating_normally" as const, question: "Operating normally?", deficiency: "not_operating" as DeficiencyCategory },
   { key: "photo" as const, question: "Take a photo", deficiency: null },
-];
+] as const;
+
+export type WizardStepKey = (typeof WIZARD_STEPS)[number]["key"];
+
+export const WIZARD_NO_REASON_PROMPTS: Record<
+  Exclude<WizardStepKey, "photo">,
+  string
+> = {
+  cleaned: "Why wasn't the unit cleaned?",
+  filter_changed: "Why wasn't the filter changed?",
+  operating_normally: "Why isn't the unit operating normally?",
+};

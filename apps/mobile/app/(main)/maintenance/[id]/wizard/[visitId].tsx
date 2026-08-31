@@ -8,20 +8,30 @@ import {
   Alert,
   Image,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { CameraView, useCameraPermissions } from "expo-camera";
-import { WIZARD_STEPS } from "@maintenancebuddy/shared";
+import { WIZARD_STEPS, WIZARD_NO_REASON_PROMPTS } from "@maintenancebuddy/shared";
 import { supabase } from "@/lib/supabase";
 import { addToOutbox, getDeficienciesFromAnswers } from "@/lib/outbox";
 import { uploadVisitPhoto } from "@/lib/upload-photo";
 import * as FileSystem from "expo-file-system/legacy";
 
+type AnswerKey = "cleaned" | "filter_changed" | "operating_normally";
+
 type WizardAnswers = {
   cleaned?: boolean;
   filter_changed?: boolean;
   operating_normally?: boolean;
-  notes?: string;
+  reasons?: Partial<Record<AnswerKey, string>>;
+};
+
+const DEFICIENCY_TO_ANSWER: Record<string, AnswerKey> = {
+  not_cleaned: "cleaned",
+  filter_not_changed: "filter_changed",
+  not_operating: "operating_normally",
 };
 
 export default function WizardScreen() {
@@ -40,6 +50,8 @@ export default function WizardScreen() {
 
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState<WizardAnswers>({});
+  const [awaitingReason, setAwaitingReason] = useState<AnswerKey | null>(null);
+  const [reasonDraft, setReasonDraft] = useState("");
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [photoBase64, setPhotoBase64] = useState<string | null>(null);
   const [hasExistingPhoto, setHasExistingPhoto] = useState(false);
@@ -58,11 +70,17 @@ export default function WizardScreen() {
     async function loadVisit() {
       setLoadingVisit(true);
 
-      const { data: visit, error } = await supabase
-        .from("suite_visits")
-        .select("status, cleaned, filter_changed, operating_normally, notes")
-        .eq("id", visitId)
-        .single();
+      const [{ data: visit, error }, { data: deficiencies }] = await Promise.all([
+        supabase
+          .from("suite_visits")
+          .select("status, cleaned, filter_changed, operating_normally, notes")
+          .eq("id", visitId)
+          .single(),
+        supabase
+          .from("deficiencies")
+          .select("category, description")
+          .eq("suite_visit_id", visitId!),
+      ]);
 
       if (error || !visit) {
         Alert.alert("Error", "Could not load suite visit.");
@@ -76,12 +94,18 @@ export default function WizardScreen() {
         return;
       }
 
+      const reasons: Partial<Record<AnswerKey, string>> = {};
+      for (const d of deficiencies ?? []) {
+        const key = DEFICIENCY_TO_ANSWER[d.category];
+        if (key) reasons[key] = d.description;
+      }
+
       setIsEditing(true);
       setAnswers({
         cleaned: visit.cleaned ?? undefined,
         filter_changed: visit.filter_changed ?? undefined,
         operating_normally: visit.operating_normally ?? undefined,
-        notes: visit.notes ?? undefined,
+        reasons,
       });
 
       const { data: photos } = await supabase
@@ -114,7 +138,9 @@ export default function WizardScreen() {
 
     const { data: { user } } = await supabase.auth.getUser();
     const updates = {
-      ...partial,
+      cleaned: merged.cleaned,
+      filter_changed: merged.filter_changed,
+      operating_normally: merged.operating_normally,
       visited_by: user?.id,
       ...(isEditing ? {} : { status: "in_progress" as const }),
     };
@@ -125,12 +151,7 @@ export default function WizardScreen() {
     }
   }
 
-  async function handleYesNo(value: boolean) {
-    if (currentStep.key === "photo") return;
-
-    const key = currentStep.key;
-    await saveProgress({ [key]: value });
-
+  function advanceStep() {
     if (step < WIZARD_STEPS.length - 1) {
       if (step === 2) {
         setStep(3);
@@ -141,6 +162,66 @@ export default function WizardScreen() {
     }
   }
 
+  async function handleYes() {
+    if (currentStep.key === "photo") return;
+
+    const key = currentStep.key as AnswerKey;
+    const nextReasons = { ...answers.reasons };
+    delete nextReasons[key];
+
+    await saveProgress({ [key]: true, reasons: nextReasons });
+    setAwaitingReason(null);
+    setReasonDraft("");
+    advanceStep();
+  }
+
+  function handleNo() {
+    if (currentStep.key === "photo") return;
+
+    const key = currentStep.key as AnswerKey;
+    setAwaitingReason(key);
+    setReasonDraft(answers.reasons?.[key] ?? "");
+  }
+
+  async function handleReasonContinue() {
+    if (!awaitingReason) return;
+
+    const reason = reasonDraft.trim();
+    if (!reason) {
+      Alert.alert("Reason required", "Please explain why before continuing.");
+      return;
+    }
+
+    await saveProgress({
+      [awaitingReason]: false,
+      reasons: { ...answers.reasons, [awaitingReason]: reason },
+    });
+    setAwaitingReason(null);
+    setReasonDraft("");
+    advanceStep();
+  }
+
+  function handleBack() {
+    if (awaitingReason) {
+      setAwaitingReason(null);
+      setReasonDraft("");
+      return;
+    }
+    if (step > 0) setStep(step - 1);
+    else router.back();
+  }
+
+  function validateNoReasons(): boolean {
+    const keys: AnswerKey[] = ["cleaned", "filter_changed", "operating_normally"];
+    for (const key of keys) {
+      if (answers[key] === false && !answers.reasons?.[key]?.trim()) {
+        Alert.alert("Reason required", `${WIZARD_NO_REASON_PROMPTS[key]}\n\nPlease go back and add an explanation.`);
+        return false;
+      }
+    }
+    return true;
+  }
+
   async function handleComplete() {
     const hasNewPhoto = photoUri && !photoUri.startsWith("http");
 
@@ -148,6 +229,8 @@ export default function WizardScreen() {
       Alert.alert("Photo required", "Please take a photo to complete this visit.");
       return;
     }
+
+    if (!validateNoReasons()) return;
 
     if (!maintenanceId || !suiteId || !visitId) {
       Alert.alert("Error", "Missing maintenance or suite info. Go back and try again.");
@@ -165,7 +248,7 @@ export default function WizardScreen() {
         cleaned: answers.cleaned ?? null,
         filter_changed: answers.filter_changed ?? null,
         operating_normally: answers.operating_normally ?? null,
-        notes: answers.notes ?? null,
+        notes: null,
       };
 
       const { error } = await supabase.from("suite_visits").update(finalUpdates).eq("id", visitId);
@@ -180,7 +263,7 @@ export default function WizardScreen() {
         const { error: dError } = await supabase.from("deficiencies").insert({
           suite_visit_id: visitId,
           category: d.category,
-          description: answers.notes && d.category === "not_operating" ? answers.notes : d.description,
+          description: d.description,
         });
         if (dError) {
           await addToOutbox({
@@ -316,12 +399,41 @@ export default function WizardScreen() {
           ? answers.operating_normally
           : undefined;
 
+  if (awaitingReason) {
+    return (
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        <TouchableOpacity style={styles.backButton} onPress={handleBack}>
+          <Text style={styles.backText}>← Back</Text>
+        </TouchableOpacity>
+
+        <Text style={styles.suiteLabel}>Suite {suiteNumber}</Text>
+        <Text style={styles.stepIndicator}>Step {step + 1} of 4</Text>
+        <Text style={styles.question}>{WIZARD_NO_REASON_PROMPTS[awaitingReason]}</Text>
+
+        <TextInput
+          style={styles.noteInput}
+          placeholder="Enter reason (required)..."
+          value={reasonDraft}
+          onChangeText={setReasonDraft}
+          multiline
+          autoFocus
+        />
+
+        <View style={styles.buttonRow}>
+          <TouchableOpacity style={styles.yesButton} onPress={handleReasonContinue}>
+            <Text style={styles.buttonText}>Continue</Text>
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
+    );
+  }
+
   return (
     <View style={styles.container}>
-      <TouchableOpacity
-        style={styles.backButton}
-        onPress={() => (step > 0 ? setStep(step - 1) : router.back())}
-      >
+      <TouchableOpacity style={styles.backButton} onPress={handleBack}>
         <Text style={styles.backText}>← {step > 0 ? "Back" : "Cancel"}</Text>
       </TouchableOpacity>
 
@@ -334,25 +446,18 @@ export default function WizardScreen() {
       {isEditing && currentAnswer !== undefined && currentStep?.key !== "photo" && (
         <Text style={styles.currentAnswer}>
           Current answer: {currentAnswer ? "Yes" : "No"}
+          {!currentAnswer && answers.reasons?.[currentStep.key as AnswerKey] && (
+            <> — {answers.reasons[currentStep.key as AnswerKey]}</>
+          )}
         </Text>
-      )}
-
-      {currentStep?.key === "operating_normally" && answers.operating_normally === false && (
-        <TextInput
-          style={styles.noteInput}
-          placeholder="Optional note about the issue..."
-          value={answers.notes ?? ""}
-          onChangeText={(notes) => setAnswers((a) => ({ ...a, notes }))}
-          multiline
-        />
       )}
 
       {currentStep?.key !== "photo" && (
         <View style={styles.buttonRow}>
-          <TouchableOpacity style={styles.noButton} onPress={() => handleYesNo(false)}>
+          <TouchableOpacity style={styles.noButton} onPress={handleNo}>
             <Text style={styles.noButtonText}>No</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.yesButton} onPress={() => handleYesNo(true)}>
+          <TouchableOpacity style={styles.yesButton} onPress={handleYes}>
             <Text style={styles.buttonText}>Yes</Text>
           </TouchableOpacity>
         </View>
@@ -408,7 +513,8 @@ const styles = StyleSheet.create({
     padding: 12,
     fontSize: 16,
     marginBottom: 16,
-    minHeight: 80,
+    minHeight: 120,
+    textAlignVertical: "top",
   },
   skipToPhotoButton: {
     alignSelf: "center",

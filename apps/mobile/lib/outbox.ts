@@ -56,10 +56,26 @@ export function getDeficienciesFromAnswers(answers: {
   cleaned?: boolean;
   filter_changed?: boolean;
   operating_normally?: boolean;
+  reasons?: Partial<Record<"cleaned" | "filter_changed" | "operating_normally", string>>;
 }): { category: DeficiencyCategory; description: string }[] {
   const deficiencies: { category: DeficiencyCategory; description: string }[] = [];
-  if (answers.cleaned === false) deficiencies.push({ category: "not_cleaned", description: "Unit not cleaned" });
-  if (answers.filter_changed === false) deficiencies.push({ category: "filter_not_changed", description: "Filter not changed" });
-  if (answers.operating_normally === false) deficiencies.push({ category: "not_operating", description: "Unit not operating normally" });
+  if (answers.cleaned === false) {
+    deficiencies.push({
+      category: "not_cleaned",
+      description: answers.reasons?.cleaned?.trim() || "Unit not cleaned",
+    });
+  }
+  if (answers.filter_changed === false) {
+    deficiencies.push({
+      category: "filter_not_changed",
+      description: answers.reasons?.filter_changed?.trim() || "Filter not changed",
+    });
+  }
+  if (answers.operating_normally === false) {
+    deficiencies.push({
+      category: "not_operating",
+      description: answers.reasons?.operating_normally?.trim() || "Unit not operating normally",
+    });
+  }
   return deficiencies;
 }
