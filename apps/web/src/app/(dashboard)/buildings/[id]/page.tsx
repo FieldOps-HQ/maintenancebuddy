@@ -2,11 +2,10 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ContactForm } from "@/components/buildings/contact-form";
-import { SuiteForm } from "@/components/buildings/suite-form";
+import { SuiteForm, SuiteRow } from "@/components/buildings/suite-form";
 import { CsvImport } from "@/components/buildings/csv-import";
 import { BuildingHeader } from "@/components/buildings/building-form";
 import { BuildingMaintenances } from "@/components/buildings/building-maintenances";
-import { Badge } from "@/components/ui/badge";
 
 export default async function BuildingDetailPage({
   params,
@@ -54,24 +53,13 @@ export default async function BuildingDetailPage({
                   <tr className="border-b text-left text-zinc-500">
                     <th className="pb-2 pr-4">Suite</th>
                     <th className="pb-2 pr-4">Floor</th>
-                    <th className="pb-2">Filter</th>
+                    <th className="pb-2 pr-4">Filter</th>
+                    <th className="pb-2">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {suites?.map((suite) => (
-                    <tr key={suite.id} className="border-b border-zinc-50">
-                      <td className="py-2 pr-4 font-medium">{suite.suite_number}</td>
-                      <td className="py-2 pr-4">{suite.floor ?? "—"}</td>
-                      <td className="py-2">
-                        {suite.filter_size ? (
-                          <Badge variant="secondary">
-                            {suite.filter_quantity}x {suite.filter_size}
-                          </Badge>
-                        ) : (
-                          "—"
-                        )}
-                      </td>
-                    </tr>
+                    <SuiteRow key={suite.id} suite={suite} filterSizes={filterSizes ?? []} />
                   ))}
                 </tbody>
               </table>
