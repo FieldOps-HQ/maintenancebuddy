@@ -36,12 +36,12 @@ function MaintenanceRow({ maintenance }: { maintenance: BuildingMaintenance }) {
 
   return (
     <Link href={`/maintenances/${maintenance.id}`}>
-      <div className="flex items-center justify-between rounded-lg border border-zinc-100 px-4 py-3 transition-colors hover:bg-zinc-50">
+      <div className="flex items-center justify-between rounded-xl border border-slate-100 px-4 py-3 transition-all hover:border-slate-200 hover:bg-slate-50/80 hover:shadow-sm">
         <div>
-          <p className="font-medium">
+          <p className="font-medium text-slate-900">
             {formatDate(maintenance.start_date)} – {formatDate(maintenance.end_date)}
           </p>
-          <p className="text-sm text-zinc-500">
+          <p className="text-sm text-slate-500">
             {done}/{total} suites complete
           </p>
         </div>
@@ -73,7 +73,7 @@ export function BuildingMaintenances({ maintenances }: { maintenances: BuildingM
       </CardHeader>
       <CardContent className="space-y-8">
         {maintenances.length === 0 ? (
-          <p className="text-sm text-zinc-500">No maintenances scheduled for this building yet.</p>
+          <p className="text-sm text-slate-500">No maintenances scheduled for this building yet.</p>
         ) : (
           timingOrder.map((timing) => {
             const items = grouped[timing];
@@ -81,7 +81,7 @@ export function BuildingMaintenances({ maintenances }: { maintenances: BuildingM
 
             return (
               <div key={timing} className="space-y-3">
-                <h3 className="text-sm font-semibold text-zinc-700">
+                <h3 className="text-sm font-semibold text-slate-700">
                   {MAINTENANCE_TIMING_LABELS[timing]} ({items.length})
                 </h3>
                 <div className="space-y-2">
