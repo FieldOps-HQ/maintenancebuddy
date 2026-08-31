@@ -25,7 +25,7 @@ export default async function BuildingDetailPage({
 
   const [{ data: suites }, { data: contacts }, { data: maintenances }, { data: filterSizes }] =
     await Promise.all([
-    supabase.from("suites").select("*").eq("building_id", id).order("suite_number"),
+    supabase.from("suites").select("*, hvac_units(*)").eq("building_id", id).order("suite_number"),
     supabase.from("building_contacts").select("*").eq("building_id", id).order("name"),
     supabase
       .from("maintenances")
@@ -59,7 +59,14 @@ export default async function BuildingDetailPage({
                 </thead>
                 <tbody>
                   {suites?.map((suite) => (
-                    <SuiteRow key={suite.id} suite={suite} filterSizes={filterSizes ?? []} />
+                    <SuiteRow
+                      key={suite.id}
+                      suite={suite}
+                      filterSizes={filterSizes ?? []}
+                      hvacUnits={(suite.hvac_units ?? []).sort(
+                        (a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name)
+                      )}
+                    />
                   ))}
                 </tbody>
               </table>

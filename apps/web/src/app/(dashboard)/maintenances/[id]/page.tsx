@@ -5,6 +5,63 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MaintenanceProgress } from "@/components/maintenances/maintenance-progress";
 import { DownloadReportButton } from "@/components/maintenances/download-report-button";
 import { MaintenanceHeader } from "@/components/maintenances/maintenance-actions";
+import type { SuiteVisitDetailData } from "@/components/maintenances/suite-visit-detail-dialog";
+
+const UNIT_VISIT_SELECT = `
+  id,
+  status,
+  cleaned,
+  filter_changed,
+  operating_normally,
+  visited_at,
+  notes,
+  hvac_unit:hvac_units(name, filter_size, filter_quantity),
+  deficiencies:deficiencies!deficiencies_hvac_unit_visit_id_fkey(id, category, description),
+  visit_photos:visit_photos!visit_photos_hvac_unit_visit_id_fkey(id, storage_path)
+`;
+
+function mapInitialVisit(v: {
+  id: string;
+  status: string;
+  visited_at: string | null;
+  notes: string | null;
+  suite: { suite_number: string; floor: string | null } | null;
+  hvac_unit_visits?: {
+    id: string;
+    status: string;
+    cleaned: boolean | null;
+    filter_changed: boolean | null;
+    operating_normally: boolean | null;
+    visited_at: string | null;
+    notes: string | null;
+    hvac_unit: { name: string; filter_size: string | null; filter_quantity: number | null } | null;
+    deficiencies?: { id: string; category: string; description: string }[];
+    visit_photos?: { id: string; storage_path: string }[];
+  }[];
+}): SuiteVisitDetailData {
+  return {
+    id: v.id,
+    status: v.status as SuiteVisitDetailData["status"],
+    suite_number: v.suite?.suite_number ?? "",
+    floor: v.suite?.floor ?? null,
+    visited_at: v.visited_at,
+    notes: v.notes,
+    unit_visits: (v.hvac_unit_visits ?? []).map((uv) => ({
+      id: uv.id,
+      status: uv.status as SuiteVisitDetailData["status"],
+      cleaned: uv.cleaned,
+      filter_changed: uv.filter_changed,
+      operating_normally: uv.operating_normally,
+      visited_at: uv.visited_at,
+      notes: uv.notes,
+      unit_name: uv.hvac_unit?.name ?? "Unit",
+      filter_size: uv.hvac_unit?.filter_size ?? null,
+      filter_quantity: uv.hvac_unit?.filter_quantity ?? null,
+      deficiencies: uv.deficiencies ?? [],
+      photos: uv.visit_photos ?? [],
+    })),
+  };
+}
 
 export default async function MaintenanceDetailPage({
   params,
@@ -22,7 +79,11 @@ export default async function MaintenanceDetailPage({
           *,
           building:buildings(*),
           assignments:maintenance_assignments(technician_id, technician:profiles(full_name, email)),
-          suite_visits(*, suite:suites(*), deficiencies(*), visit_photos(*))
+          suite_visits(
+            *,
+            suite:suites(*),
+            hvac_unit_visits(${UNIT_VISIT_SELECT})
+          )
         `)
         .eq("id", id)
         .single(),
@@ -50,7 +111,9 @@ export default async function MaintenanceDetailPage({
   const blocked = visits.filter((v) => v.status === "blocked_unit").length;
   const noAccess = visits.filter((v) => v.status === "no_access").length;
   const pending = visits.filter((v) => v.status === "pending").length;
-  const deficiencies = visits.flatMap((v) => v.deficiencies ?? []);
+  const deficiencies = visits.flatMap((v) =>
+    (v.hvac_unit_visits ?? []).flatMap((uv) => uv.deficiencies ?? [])
+  );
 
   return (
     <div className="space-y-8">
@@ -94,21 +157,7 @@ export default async function MaintenanceDetailPage({
         <div className="lg:col-span-2">
           <MaintenanceProgress
             maintenanceId={id}
-            initialVisits={visits.map((v) => ({
-              id: v.id,
-              status: v.status,
-              suite_number: v.suite?.suite_number ?? "",
-              floor: v.suite?.floor ?? null,
-              filter_size: v.suite?.filter_size ?? null,
-              filter_quantity: v.suite?.filter_quantity ?? null,
-              cleaned: v.cleaned,
-              filter_changed: v.filter_changed,
-              operating_normally: v.operating_normally,
-              visited_at: v.visited_at,
-              notes: v.notes,
-              deficiencies: v.deficiencies ?? [],
-              photos: v.visit_photos ?? [],
-            }))}
+            initialVisits={visits.map(mapInitialVisit)}
           />
         </div>
 
@@ -154,13 +203,17 @@ export default async function MaintenanceDetailPage({
               </CardHeader>
               <CardContent className="max-h-64 space-y-2 overflow-auto">
                 {visits
-                  .filter((v) => v.deficiencies?.length)
+                  .filter((v) => (v.hvac_unit_visits ?? []).some((uv) => uv.deficiencies?.length))
                   .map((v) => (
                     <div key={v.id} className="rounded-lg border border-zinc-100 p-2 text-sm">
                       <p className="font-medium">Suite {v.suite?.suite_number}</p>
-                      {v.deficiencies?.map((d) => (
-                        <p key={d.id} className="text-zinc-600">{d.description}</p>
-                      ))}
+                      {(v.hvac_unit_visits ?? []).flatMap((uv) =>
+                        (uv.deficiencies ?? []).map((d) => (
+                          <p key={d.id} className="text-zinc-600">
+                            {uv.hvac_unit?.name}: {d.description}
+                          </p>
+                        ))
+                      )}
                     </div>
                   ))}
               </CardContent>

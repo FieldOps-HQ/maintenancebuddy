@@ -39,6 +39,16 @@ export const suiteSchema = z.object({
 
 export const technicianAddSuiteSchema = suiteSchema;
 
+export const hvacUnitSchema = z.object({
+  name: z.string().min(1, "Unit name is required"),
+  location_notes: z.string().optional(),
+  filter_size: z.string().optional(),
+  filter_quantity: z.coerce.number().int().min(0).default(1),
+  sort_order: z.coerce.number().int().min(0).optional(),
+});
+
+export const technicianAddHvacUnitSchema = hvacUnitSchema;
+
 export const maintenanceSchema = z.object({
   building_id: z.string().uuid(),
   start_date: z.string().min(1),
@@ -77,6 +87,8 @@ export type BuildingContactInput = z.infer<typeof buildingContactSchema>;
 export type FilterSizeInput = z.infer<typeof filterSizeSchema>;
 export type SuiteInput = z.infer<typeof suiteSchema>;
 export type TechnicianAddSuiteInput = z.infer<typeof technicianAddSuiteSchema>;
+export type HvacUnitInput = z.infer<typeof hvacUnitSchema>;
+export type TechnicianAddHvacUnitInput = z.infer<typeof technicianAddHvacUnitSchema>;
 export type MaintenanceInput = z.infer<typeof maintenanceSchema>;
 export type MaintenanceUpdateInput = z.infer<typeof maintenanceUpdateSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;

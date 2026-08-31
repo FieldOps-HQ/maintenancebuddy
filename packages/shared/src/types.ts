@@ -68,6 +68,17 @@ export interface Suite {
   created_at: string;
 }
 
+export interface HvacUnit {
+  id: string;
+  suite_id: string;
+  name: string;
+  location_notes: string | null;
+  filter_size: string | null;
+  filter_quantity: number;
+  sort_order: number;
+  created_at: string;
+}
+
 export interface Maintenance {
   id: string;
   building_id: string;
@@ -91,6 +102,17 @@ export interface SuiteVisit {
   maintenance_id: string;
   suite_id: string;
   status: SuiteVisitStatus;
+  visited_at: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface HvacUnitVisit {
+  id: string;
+  suite_visit_id: string;
+  hvac_unit_id: string;
+  status: SuiteVisitStatus;
   cleaned: boolean | null;
   filter_changed: boolean | null;
   operating_normally: boolean | null;
@@ -103,7 +125,7 @@ export interface SuiteVisit {
 
 export interface Deficiency {
   id: string;
-  suite_visit_id: string;
+  hvac_unit_visit_id: string;
   category: DeficiencyCategory;
   description: string;
   created_at: string;
@@ -111,7 +133,7 @@ export interface Deficiency {
 
 export interface VisitPhoto {
   id: string;
-  suite_visit_id: string;
+  hvac_unit_visit_id: string;
   storage_path: string;
   created_at: string;
 }
@@ -120,10 +142,18 @@ export interface SuiteVisitWithSuite extends SuiteVisit {
   suite: Suite;
 }
 
+export interface HvacUnitVisitWithUnit extends HvacUnitVisit {
+  hvac_unit: HvacUnit;
+}
+
+export interface SuiteVisitWithUnits extends SuiteVisitWithSuite {
+  hvac_unit_visits: HvacUnitVisitWithUnit[];
+}
+
 export interface MaintenanceWithDetails extends Maintenance {
   building: Building;
   assignments: (MaintenanceAssignment & { technician: Profile })[];
-  suite_visits: SuiteVisitWithSuite[];
+  suite_visits: SuiteVisitWithUnits[];
 }
 
 export interface FilterSummary {

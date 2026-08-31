@@ -169,6 +169,47 @@ export type Database = {
           },
         ];
       };
+      hvac_units: {
+        Row: {
+          id: string;
+          suite_id: string;
+          name: string;
+          location_notes: string | null;
+          filter_size: string | null;
+          filter_quantity: number;
+          sort_order: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          suite_id: string;
+          name: string;
+          location_notes?: string | null;
+          filter_size?: string | null;
+          filter_quantity?: number;
+          sort_order?: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          suite_id?: string;
+          name?: string;
+          location_notes?: string | null;
+          filter_size?: string | null;
+          filter_quantity?: number;
+          sort_order?: number;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "hvac_units_suite_id_fkey";
+            columns: ["suite_id"];
+            isOneToOne: false;
+            referencedRelation: "suites";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       maintenances: {
         Row: {
           id: string;
@@ -252,11 +293,7 @@ export type Database = {
           maintenance_id: string;
           suite_id: string;
           status: "pending" | "completed" | "blocked_unit" | "no_access" | "skipped" | "in_progress";
-          cleaned: boolean | null;
-          filter_changed: boolean | null;
-          operating_normally: boolean | null;
           visited_at: string | null;
-          visited_by: string | null;
           notes: string | null;
           created_at: string;
           updated_at: string;
@@ -266,11 +303,7 @@ export type Database = {
           maintenance_id: string;
           suite_id: string;
           status?: "pending" | "completed" | "blocked_unit" | "no_access" | "skipped" | "in_progress";
-          cleaned?: boolean | null;
-          filter_changed?: boolean | null;
-          operating_normally?: boolean | null;
           visited_at?: string | null;
-          visited_by?: string | null;
           notes?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -280,11 +313,7 @@ export type Database = {
           maintenance_id?: string;
           suite_id?: string;
           status?: "pending" | "completed" | "blocked_unit" | "no_access" | "skipped" | "in_progress";
-          cleaned?: boolean | null;
-          filter_changed?: boolean | null;
-          operating_normally?: boolean | null;
           visited_at?: string | null;
-          visited_by?: string | null;
           notes?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -304,8 +333,68 @@ export type Database = {
             referencedRelation: "suites";
             referencedColumns: ["id"];
           },
+        ];
+      };
+      hvac_unit_visits: {
+        Row: {
+          id: string;
+          suite_visit_id: string;
+          hvac_unit_id: string;
+          status: "pending" | "completed" | "blocked_unit" | "no_access" | "skipped" | "in_progress";
+          cleaned: boolean | null;
+          filter_changed: boolean | null;
+          operating_normally: boolean | null;
+          visited_at: string | null;
+          visited_by: string | null;
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          suite_visit_id: string;
+          hvac_unit_id: string;
+          status?: "pending" | "completed" | "blocked_unit" | "no_access" | "skipped" | "in_progress";
+          cleaned?: boolean | null;
+          filter_changed?: boolean | null;
+          operating_normally?: boolean | null;
+          visited_at?: string | null;
+          visited_by?: string | null;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          suite_visit_id?: string;
+          hvac_unit_id?: string;
+          status?: "pending" | "completed" | "blocked_unit" | "no_access" | "skipped" | "in_progress";
+          cleaned?: boolean | null;
+          filter_changed?: boolean | null;
+          operating_normally?: boolean | null;
+          visited_at?: string | null;
+          visited_by?: string | null;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
           {
-            foreignKeyName: "suite_visits_visited_by_fkey";
+            foreignKeyName: "hvac_unit_visits_suite_visit_id_fkey";
+            columns: ["suite_visit_id"];
+            isOneToOne: false;
+            referencedRelation: "suite_visits";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "hvac_unit_visits_hvac_unit_id_fkey";
+            columns: ["hvac_unit_id"];
+            isOneToOne: false;
+            referencedRelation: "hvac_units";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "hvac_unit_visits_visited_by_fkey";
             columns: ["visited_by"];
             isOneToOne: false;
             referencedRelation: "profiles";
@@ -316,31 +405,31 @@ export type Database = {
       deficiencies: {
         Row: {
           id: string;
-          suite_visit_id: string;
+          hvac_unit_visit_id: string;
           category: "not_cleaned" | "filter_not_changed" | "not_operating" | "other";
           description: string;
           created_at: string;
         };
         Insert: {
           id?: string;
-          suite_visit_id: string;
+          hvac_unit_visit_id: string;
           category: "not_cleaned" | "filter_not_changed" | "not_operating" | "other";
           description: string;
           created_at?: string;
         };
         Update: {
           id?: string;
-          suite_visit_id?: string;
+          hvac_unit_visit_id?: string;
           category?: "not_cleaned" | "filter_not_changed" | "not_operating" | "other";
           description?: string;
           created_at?: string;
         };
         Relationships: [
           {
-            foreignKeyName: "deficiencies_suite_visit_id_fkey";
-            columns: ["suite_visit_id"];
+            foreignKeyName: "deficiencies_hvac_unit_visit_id_fkey";
+            columns: ["hvac_unit_visit_id"];
             isOneToOne: false;
-            referencedRelation: "suite_visits";
+            referencedRelation: "hvac_unit_visits";
             referencedColumns: ["id"];
           },
         ];
@@ -348,28 +437,28 @@ export type Database = {
       visit_photos: {
         Row: {
           id: string;
-          suite_visit_id: string;
+          hvac_unit_visit_id: string;
           storage_path: string;
           created_at: string;
         };
         Insert: {
           id?: string;
-          suite_visit_id: string;
+          hvac_unit_visit_id: string;
           storage_path: string;
           created_at?: string;
         };
         Update: {
           id?: string;
-          suite_visit_id?: string;
+          hvac_unit_visit_id?: string;
           storage_path?: string;
           created_at?: string;
         };
         Relationships: [
           {
-            foreignKeyName: "visit_photos_suite_visit_id_fkey";
-            columns: ["suite_visit_id"];
+            foreignKeyName: "visit_photos_hvac_unit_visit_id_fkey";
+            columns: ["hvac_unit_visit_id"];
             isOneToOne: false;
-            referencedRelation: "suite_visits";
+            referencedRelation: "hvac_unit_visits";
             referencedColumns: ["id"];
           },
         ];

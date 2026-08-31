@@ -31,6 +31,8 @@ interface VisitTile {
   status: SuiteVisitStatus;
   suite_number: string;
   suite_id: string;
+  unitsCompleted: number;
+  unitsTotal: number;
 }
 
 interface FilterSizeOption {
@@ -83,7 +85,7 @@ export default function SuiteGridScreen() {
         .single(),
       supabase
         .from("suite_visits")
-        .select("id, status, suite_id, suite:suites(suite_number)")
+        .select("id, status, suite_id, suite:suites(suite_number), hvac_unit_visits(status)")
         .eq("maintenance_id", maintenanceId),
       supabase
         .from("filter_sizes")
@@ -97,12 +99,23 @@ export default function SuiteGridScreen() {
     setBuildingName(maintenance?.building?.name ?? "");
     setBuildingId(maintenance?.building_id ?? "");
     setVisits(
-      (visitData ?? []).map((v: { id: string; status: string; suite_id: string; suite: { suite_number: string } | null }) => ({
-        id: v.id,
-        status: v.status as SuiteVisitStatus,
-        suite_id: v.suite_id,
-        suite_number: v.suite?.suite_number ?? "",
-      }))
+      (visitData ?? []).map((v: {
+        id: string;
+        status: string;
+        suite_id: string;
+        suite: { suite_number: string } | null;
+        hvac_unit_visits: { status: string }[] | null;
+      }) => {
+        const unitVisits = v.hvac_unit_visits ?? [];
+        return {
+          id: v.id,
+          status: v.status as SuiteVisitStatus,
+          suite_id: v.suite_id,
+          suite_number: v.suite?.suite_number ?? "",
+          unitsCompleted: unitVisits.filter((uv) => uv.status === "completed").length,
+          unitsTotal: unitVisits.length,
+        };
+      })
     );
   }, [maintenanceId]);
 
@@ -142,18 +155,19 @@ export default function SuiteGridScreen() {
     setFilterPickerOpen(false);
   }
 
+  function suiteRoute(visit: VisitTile) {
+    return `/maintenance/${maintenanceId}/suite/${visit.id}?suiteNumber=${visit.suite_number}&suiteId=${visit.suite_id}`;
+  }
+
   function promptStartVisit(visit: VisitTile) {
     Alert.alert(
       "Suite added",
-      `Suite ${visit.suite_number} was added. Start the visit now?`,
+      `Suite ${visit.suite_number} was added. Open the unit list now?`,
       [
         { text: "Later", style: "cancel" },
         {
-          text: "Start visit",
-          onPress: () =>
-            router.push(
-              `/maintenance/${maintenanceId}/wizard/${visit.id}?suiteNumber=${visit.suite_number}&suiteId=${visit.suite_id}`
-            ),
+          text: "Open suite",
+          onPress: () => router.push(suiteRoute(visit)),
         },
       ]
     );
@@ -210,7 +224,7 @@ export default function SuiteGridScreen() {
 
     const { data: visitData } = await supabase
       .from("suite_visits")
-      .select("id, status, suite_id, suite:suites(suite_number)")
+      .select("id, status, suite_id, suite:suites(suite_number), hvac_unit_visits(status)")
       .eq("maintenance_id", maintenanceId)
       .eq("suite_id", suite.id)
       .single();
@@ -221,6 +235,8 @@ export default function SuiteGridScreen() {
           status: visitData.status as SuiteVisitStatus,
           suite_id: visitData.suite_id,
           suite_number: visitData.suite?.suite_number ?? suite.suite_number,
+          unitsCompleted: (visitData.hvac_unit_visits ?? []).filter((uv) => uv.status === "completed").length,
+          unitsTotal: visitData.hvac_unit_visits?.length ?? 0,
         }
       : null;
 
@@ -251,7 +267,7 @@ export default function SuiteGridScreen() {
       .eq("id", selectedVisit.id);
 
     if (error) {
-      await addToOutbox({ type: "update_visit", payload: { visitId: selectedVisit.id, updates } });
+      await addToOutbox({ type: "update_suite_visit", payload: { visitId: selectedVisit.id, updates } });
       setPendingSync((p) => p + 1);
     }
 
@@ -260,16 +276,7 @@ export default function SuiteGridScreen() {
   }
 
   function handleSuitePress(visit: VisitTile) {
-    const base = `/maintenance/${maintenanceId}/wizard/${visit.id}?suiteNumber=${visit.suite_number}&suiteId=${visit.suite_id}`;
-
-    if (visit.status === "pending" || visit.status === "in_progress") {
-      router.push(base);
-      return;
-    }
-
-    if (visit.status === "completed") {
-      router.push(`${base}&edit=true`);
-    }
+    router.push(suiteRoute(visit));
   }
 
   function handleLongPress(visit: VisitTile) {
@@ -336,6 +343,16 @@ export default function SuiteGridScreen() {
             <Text style={[styles.tileText, item.status === "pending" ? styles.tileTextDark : styles.tileTextLight]}>
               {item.suite_number}
             </Text>
+            {item.unitsTotal > 1 && (
+              <Text
+                style={[
+                  styles.tileSubtext,
+                  item.status === "pending" ? styles.tileTextDark : styles.tileTextLight,
+                ]}
+              >
+                {item.unitsCompleted}/{item.unitsTotal}
+              </Text>
+            )}
           </TouchableOpacity>
         )}
       />
@@ -529,6 +546,7 @@ const styles = StyleSheet.create({
     minHeight: 72,
   },
   tileText: { fontSize: 16, fontWeight: "700" },
+  tileSubtext: { fontSize: 10, fontWeight: "600", marginTop: 2 },
   tileTextDark: { color: "#52525b" },
   tileTextLight: { color: "#fff" },
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center" },

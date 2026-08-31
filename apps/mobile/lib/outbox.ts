@@ -5,7 +5,13 @@ const OUTBOX_KEY = "maintenancebuddy_outbox";
 
 export interface OutboxItem {
   id: string;
-  type: "update_visit" | "upload_photo" | "create_deficiency" | "add_suite";
+  type:
+    | "update_unit_visit"
+    | "update_suite_visit"
+    | "upload_photo"
+    | "create_deficiency"
+    | "add_suite"
+    | "add_hvac_unit";
   payload: Record<string, unknown>;
   createdAt: string;
 }
@@ -32,19 +38,23 @@ export async function removeFromOutbox(id: string) {
 
 export async function processOutbox(
   handlers: {
-    updateVisit: (payload: Record<string, unknown>) => Promise<void>;
+    updateUnitVisit: (payload: Record<string, unknown>) => Promise<void>;
+    updateSuiteVisit: (payload: Record<string, unknown>) => Promise<void>;
     uploadPhoto: (payload: Record<string, unknown>) => Promise<void>;
     createDeficiency: (payload: Record<string, unknown>) => Promise<void>;
     addSuite: (payload: Record<string, unknown>) => Promise<void>;
+    addHvacUnit: (payload: Record<string, unknown>) => Promise<void>;
   }
 ) {
   const outbox = await getOutbox();
   for (const item of outbox) {
     try {
-      if (item.type === "update_visit") await handlers.updateVisit(item.payload);
+      if (item.type === "update_unit_visit") await handlers.updateUnitVisit(item.payload);
+      if (item.type === "update_suite_visit") await handlers.updateSuiteVisit(item.payload);
       if (item.type === "upload_photo") await handlers.uploadPhoto(item.payload);
       if (item.type === "create_deficiency") await handlers.createDeficiency(item.payload);
       if (item.type === "add_suite") await handlers.addSuite(item.payload);
+      if (item.type === "add_hvac_unit") await handlers.addHvacUnit(item.payload);
       await removeFromOutbox(item.id);
     } catch {
       break;

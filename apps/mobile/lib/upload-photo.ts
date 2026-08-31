@@ -20,11 +20,14 @@ export async function uploadVisitPhoto(
   photoUri: string,
   maintenanceId: string,
   suiteId: string,
-  visitId: string,
+  unitId: string,
+  unitVisitId: string,
   inlineBase64?: string | null
 ): Promise<{ storagePath: string }> {
-  if (!maintenanceId || !suiteId || !visitId) {
-    throw new Error(`Missing IDs: maintenance=${maintenanceId}, suite=${suiteId}, visit=${visitId}`);
+  if (!maintenanceId || !suiteId || !unitId || !unitVisitId) {
+    throw new Error(
+      `Missing IDs: maintenance=${maintenanceId}, suite=${suiteId}, unit=${unitId}, unitVisit=${unitVisitId}`
+    );
   }
 
   const base64 = await readPhotoAsBase64(photoUri, inlineBase64);
@@ -32,7 +35,7 @@ export async function uploadVisitPhoto(
     throw new Error("Photo file is empty");
   }
 
-  const storagePath = `${maintenanceId}/${suiteId}/${Date.now()}.jpg`;
+  const storagePath = `${maintenanceId}/${suiteId}/${unitId}/${Date.now()}.jpg`;
   const fileData = base64ToUint8Array(base64);
 
   const { error: uploadError } = await supabase.storage
@@ -43,10 +46,10 @@ export async function uploadVisitPhoto(
     throw new Error(`Upload failed: ${uploadError.message}`);
   }
 
-  await supabase.from("visit_photos").delete().eq("suite_visit_id", visitId);
+  await supabase.from("visit_photos").delete().eq("hvac_unit_visit_id", unitVisitId);
 
   const { error: insertError } = await supabase.from("visit_photos").insert({
-    suite_visit_id: visitId,
+    hvac_unit_visit_id: unitVisitId,
     storage_path: storagePath,
   });
 

@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { suiteSchema, formatFilterSize, formatFilterSizeLabel } from "@maintenancebuddy/shared";
-import type { Suite } from "@maintenancebuddy/shared";
+import type { Suite, HvacUnit } from "@maintenancebuddy/shared";
+import { AddHvacUnitForm, HvacUnitRow } from "@/components/buildings/hvac-unit-form";
 import { createClient } from "@/lib/supabase/client";
 import { MoreHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -169,12 +170,15 @@ function SuiteFields({
 export function SuiteRow({
   suite,
   filterSizes,
+  hvacUnits = [],
 }: {
   suite: Suite;
   filterSizes: FilterSizeOption[];
+  hvacUnits?: HvacUnit[];
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -267,49 +271,82 @@ export function SuiteRow({
     );
   }
 
+  const unitSummary =
+    hvacUnits.length > 0
+      ? `${hvacUnits.length} unit${hvacUnits.length === 1 ? "" : "s"}`
+      : suite.filter_size
+        ? `${suite.filter_quantity}x ${suite.filter_size}`
+        : "—";
+
   return (
-    <tr className="border-b border-zinc-50">
-      <td className="py-2 pr-4 font-medium">{suite.suite_number}</td>
-      <td className="py-2 pr-4">{suite.floor ?? "—"}</td>
-      <td className="py-2 pr-4">
-        {suite.filter_size ? (
-          <Badge variant="secondary">
-            {suite.filter_quantity}x {suite.filter_size}
-          </Badge>
-        ) : (
-          "—"
-        )}
-      </td>
-      <td className="py-2">
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900"
-            aria-label="Suite actions"
+    <>
+      <tr className="border-b border-zinc-50">
+        <td className="py-2 pr-4 font-medium">
+          <button
+            type="button"
+            className="text-left hover:underline"
+            onClick={() => setExpanded((v) => !v)}
           >
-            <MoreHorizontal className="h-4 w-4" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent>
-            <DropdownMenuItem onClick={() => setEditing(true)}>Edit</DropdownMenuItem>
-            <DropdownMenuItem
-              destructive
-              disabled={loading}
-              onClick={() => {
-                if (
-                  !confirm(
-                    "Delete this suite? This will also remove all related maintenance visit records."
-                  )
-                ) {
-                  return;
-                }
-                handleDelete();
-              }}
+            {suite.suite_number}
+          </button>
+        </td>
+        <td className="py-2 pr-4">{suite.floor ?? "—"}</td>
+        <td className="py-2 pr-4">
+          {hvacUnits.length === 1 && hvacUnits[0].filter_size ? (
+            <Badge variant="secondary">
+              {hvacUnits[0].filter_quantity}x {hvacUnits[0].filter_size}
+            </Badge>
+          ) : (
+            <span className="text-zinc-600">{unitSummary}</span>
+          )}
+        </td>
+        <td className="py-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              className="inline-flex h-8 w-8 items-center justify-center rounded-md text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900"
+              aria-label="Suite actions"
             >
-              Delete
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-        {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
-      </td>
-    </tr>
+              <MoreHorizontal className="h-4 w-4" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem onClick={() => setExpanded(true)}>Manage units</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setEditing(true)}>Edit suite</DropdownMenuItem>
+              <DropdownMenuItem
+                destructive
+                disabled={loading}
+                onClick={() => {
+                  if (
+                    !confirm(
+                      "Delete this suite? This will also remove all related maintenance visit records."
+                    )
+                  ) {
+                    return;
+                  }
+                  handleDelete();
+                }}
+              >
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+        </td>
+      </tr>
+      {expanded && (
+        <tr>
+          <td colSpan={4} className="pb-4 pl-6">
+            <div className="space-y-3 rounded-lg border border-zinc-100 bg-zinc-50/50 p-4">
+              <p className="text-sm font-medium text-zinc-700">HVAC units</p>
+              <ul className="space-y-2">
+                {hvacUnits.map((unit) => (
+                  <HvacUnitRow key={unit.id} unit={unit} filterSizes={filterSizes} />
+                ))}
+              </ul>
+              <AddHvacUnitForm suiteId={suite.id} filterSizes={filterSizes} />
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
   );
 }

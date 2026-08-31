@@ -40,6 +40,9 @@ export default function WizardScreen() {
     suiteNumber: string;
     suiteId: string;
     id: string;
+    unitVisitId: string;
+    unitId: string;
+    unitName: string;
     edit?: string;
   }>();
 
@@ -47,6 +50,9 @@ export default function WizardScreen() {
   const suiteNumber = params.suiteNumber;
   const suiteId = params.suiteId;
   const maintenanceId = params.id;
+  const unitVisitId = params.unitVisitId;
+  const unitId = params.unitId;
+  const unitName = params.unitName ?? "Unit";
 
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState<WizardAnswers>({});
@@ -65,31 +71,31 @@ export default function WizardScreen() {
   const currentStep = WIZARD_STEPS[step];
 
   useEffect(() => {
-    if (!visitId || params.edit !== "true") return;
+    if (!unitVisitId || params.edit !== "true") return;
 
     async function loadVisit() {
       setLoadingVisit(true);
 
       const [{ data: visit, error }, { data: deficiencies }] = await Promise.all([
         supabase
-          .from("suite_visits")
+          .from("hvac_unit_visits")
           .select("status, cleaned, filter_changed, operating_normally, notes")
-          .eq("id", visitId)
+          .eq("id", unitVisitId)
           .single(),
         supabase
           .from("deficiencies")
           .select("category, description")
-          .eq("suite_visit_id", visitId!),
+          .eq("hvac_unit_visit_id", unitVisitId!),
       ]);
 
       if (error || !visit) {
-        Alert.alert("Error", "Could not load suite visit.");
+        Alert.alert("Error", "Could not load unit visit.");
         router.back();
         return;
       }
 
       if (visit.status !== "completed") {
-        Alert.alert("Cannot edit", "Only completed suites can be edited.");
+        Alert.alert("Cannot edit", "Only completed units can be edited.");
         router.back();
         return;
       }
@@ -111,7 +117,7 @@ export default function WizardScreen() {
       const { data: photos } = await supabase
         .from("visit_photos")
         .select("storage_path")
-        .eq("suite_visit_id", visitId)
+        .eq("hvac_unit_visit_id", unitVisitId)
         .order("created_at", { ascending: false })
         .limit(1);
 
@@ -130,7 +136,7 @@ export default function WizardScreen() {
     }
 
     loadVisit();
-  }, [visitId, params.edit]);
+  }, [unitVisitId, params.edit]);
 
   async function saveProgress(partial: WizardAnswers) {
     const merged = { ...answers, ...partial };
@@ -145,9 +151,9 @@ export default function WizardScreen() {
       ...(isEditing ? {} : { status: "in_progress" as const }),
     };
 
-    const { error } = await supabase.from("suite_visits").update(updates).eq("id", visitId!);
+    const { error } = await supabase.from("hvac_unit_visits").update(updates).eq("id", unitVisitId!);
     if (error) {
-      await addToOutbox({ type: "update_visit", payload: { visitId, updates } });
+      await addToOutbox({ type: "update_unit_visit", payload: { unitVisitId, updates } });
     }
   }
 
@@ -232,8 +238,8 @@ export default function WizardScreen() {
 
     if (!validateNoReasons()) return;
 
-    if (!maintenanceId || !suiteId || !visitId) {
-      Alert.alert("Error", "Missing maintenance or suite info. Go back and try again.");
+    if (!maintenanceId || !suiteId || !unitVisitId || !unitId) {
+      Alert.alert("Error", "Missing maintenance or unit info. Go back and try again.");
       return;
     }
 
@@ -251,30 +257,30 @@ export default function WizardScreen() {
         notes: null,
       };
 
-      const { error } = await supabase.from("suite_visits").update(finalUpdates).eq("id", visitId);
+      const { error } = await supabase.from("hvac_unit_visits").update(finalUpdates).eq("id", unitVisitId);
       if (error) {
-        await addToOutbox({ type: "update_visit", payload: { visitId, updates: finalUpdates } });
+        await addToOutbox({ type: "update_unit_visit", payload: { unitVisitId, updates: finalUpdates } });
       }
 
       const deficiencies = getDeficienciesFromAnswers(answers);
-      await supabase.from("deficiencies").delete().eq("suite_visit_id", visitId);
+      await supabase.from("deficiencies").delete().eq("hvac_unit_visit_id", unitVisitId);
 
       for (const d of deficiencies) {
         const { error: dError } = await supabase.from("deficiencies").insert({
-          suite_visit_id: visitId,
+          hvac_unit_visit_id: unitVisitId,
           category: d.category,
           description: d.description,
         });
         if (dError) {
           await addToOutbox({
             type: "create_deficiency",
-            payload: { visitId, category: d.category, description: d.description },
+            payload: { unitVisitId, category: d.category, description: d.description },
           });
         }
       }
 
       if (hasNewPhoto) {
-        await uploadVisitPhoto(photoUri, maintenanceId, suiteId, visitId, photoBase64);
+        await uploadVisitPhoto(photoUri, maintenanceId, suiteId, unitId, unitVisitId, photoBase64);
       }
 
       router.back();
@@ -290,7 +296,7 @@ export default function WizardScreen() {
             }));
           await addToOutbox({
             type: "upload_photo",
-            payload: { visitId, maintenanceId, suiteId, base64 },
+            payload: { unitVisitId, maintenanceId, suiteId, unitId, base64 },
           });
           Alert.alert(
             "Photo saved locally",
@@ -358,7 +364,7 @@ export default function WizardScreen() {
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()} disabled={submitting}>
           <Text style={styles.backText}>← Cancel</Text>
         </TouchableOpacity>
-        <Text style={styles.suiteLabel}>Suite {suiteNumber}</Text>
+        <Text style={styles.suiteLabel}>Suite {suiteNumber} · {unitName}</Text>
         <Text style={styles.stepIndicator}>Step 4 of 4</Text>
         <Text style={styles.stepTitle}>Photo</Text>
         <Text style={styles.question}>Photo Preview</Text>
@@ -411,7 +417,7 @@ export default function WizardScreen() {
           <Text style={styles.backText}>← Back</Text>
         </TouchableOpacity>
 
-        <Text style={styles.suiteLabel}>Suite {suiteNumber}</Text>
+        <Text style={styles.suiteLabel}>Suite {suiteNumber} · {unitName}</Text>
         <Text style={styles.stepIndicator}>Step {step + 1} of 4</Text>
         <Text style={styles.stepTitle}>
           {WIZARD_STEPS.find((s) => s.key === awaitingReason)?.title}
@@ -443,7 +449,7 @@ export default function WizardScreen() {
       </TouchableOpacity>
 
       <Text style={styles.suiteLabel}>
-        Suite {suiteNumber}{isEditing ? " · Editing" : ""}
+        Suite {suiteNumber} · {unitName}{isEditing ? " · Editing" : ""}
       </Text>
       <Text style={styles.stepIndicator}>Step {step + 1} of 4</Text>
       <Text style={styles.stepTitle}>{currentStep.title}</Text>

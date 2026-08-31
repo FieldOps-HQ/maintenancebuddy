@@ -18,7 +18,15 @@ export async function GET(
       *,
       building:buildings(*),
       assignments:maintenance_assignments(technician:profiles(full_name)),
-      suite_visits(*, suite:suites(*), deficiencies(*))
+      suite_visits(
+        *,
+        suite:suites(*),
+        hvac_unit_visits(
+          *,
+          hvac_unit:hvac_units(name),
+          deficiencies:deficiencies!deficiencies_hvac_unit_visit_id_fkey(*)
+        )
+      )
     `)
     .eq("id", maintenanceId)
     .single();
