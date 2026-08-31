@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Building2, Calendar, LayoutDashboard, LogOut } from "lucide-react";
+import { Building2, Calendar, Filter, LayoutDashboard, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
@@ -11,6 +11,7 @@ const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/buildings", label: "Buildings", icon: Building2 },
   { href: "/maintenances", label: "Maintenances", icon: Calendar },
+  { href: "/filter-sizes", label: "Filter Sizes", icon: Filter },
 ];
 
 export function Sidebar() {

@@ -15,6 +15,20 @@ export const buildingContactSchema = z.object({
   email: z.string().email().optional().or(z.literal("")),
 });
 
+function inchField(message: string) {
+  return z.coerce
+    .number()
+    .positive(message)
+    .refine((n) => Math.abs(n * 10 - Math.round(n * 10)) < 1e-9, "Use at most 1 decimal place")
+    .transform((n) => Math.round(n * 10) / 10);
+}
+
+export const filterSizeSchema = z.object({
+  length_in: inchField("Length is required"),
+  width_in: inchField("Width is required"),
+  thickness_in: inchField("Thickness is required"),
+});
+
 export const suiteSchema = z.object({
   suite_number: z.string().min(1, "Suite number is required"),
   floor: z.string().optional(),
@@ -60,6 +74,7 @@ export const wizardStepSchema = z.object({
 
 export type BuildingInput = z.infer<typeof buildingSchema>;
 export type BuildingContactInput = z.infer<typeof buildingContactSchema>;
+export type FilterSizeInput = z.infer<typeof filterSizeSchema>;
 export type SuiteInput = z.infer<typeof suiteSchema>;
 export type TechnicianAddSuiteInput = z.infer<typeof technicianAddSuiteSchema>;
 export type MaintenanceInput = z.infer<typeof maintenanceSchema>;

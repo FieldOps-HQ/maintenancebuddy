@@ -104,6 +104,30 @@ export type Database = {
           },
         ];
       };
+      filter_sizes: {
+        Row: {
+          id: string;
+          length_in: number;
+          width_in: number;
+          thickness_in: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          length_in: number;
+          width_in: number;
+          thickness_in: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          length_in?: number;
+          width_in?: number;
+          thickness_in?: number;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       suites: {
         Row: {
           id: string;

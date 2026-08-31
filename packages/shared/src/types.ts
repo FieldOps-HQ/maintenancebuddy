@@ -49,6 +49,14 @@ export interface BuildingContact {
   created_at: string;
 }
 
+export interface FilterSize {
+  id: string;
+  length_in: number;
+  width_in: number;
+  thickness_in: number;
+  created_at: string;
+}
+
 export interface Suite {
   id: string;
   building_id: string;

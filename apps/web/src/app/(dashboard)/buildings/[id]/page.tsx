@@ -24,7 +24,8 @@ export default async function BuildingDetailPage({
 
   if (!building) notFound();
 
-  const [{ data: suites }, { data: contacts }, { data: maintenances }] = await Promise.all([
+  const [{ data: suites }, { data: contacts }, { data: maintenances }, { data: filterSizes }] =
+    await Promise.all([
     supabase.from("suites").select("*").eq("building_id", id).order("suite_number"),
     supabase.from("building_contacts").select("*").eq("building_id", id).order("name"),
     supabase
@@ -32,6 +33,7 @@ export default async function BuildingDetailPage({
       .select("id, start_date, end_date, status, suite_visits(status)")
       .eq("building_id", id)
       .order("start_date", { ascending: false }),
+    supabase.from("filter_sizes").select("id, length_in, width_in, thickness_in").order("length_in").order("width_in").order("thickness_in"),
   ]);
 
   return (
@@ -44,7 +46,7 @@ export default async function BuildingDetailPage({
             <CardTitle>Suites ({suites?.length ?? 0})</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <SuiteForm buildingId={id} />
+            <SuiteForm buildingId={id} filterSizes={filterSizes ?? []} />
             <CsvImport buildingId={id} />
             <div className="max-h-96 overflow-auto">
               <table className="w-full text-sm">
