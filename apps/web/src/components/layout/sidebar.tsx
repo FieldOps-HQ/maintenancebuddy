@@ -25,7 +25,7 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="flex h-screen w-64 flex-col border-r border-zinc-200 bg-white">
+    <aside className="flex h-full w-64 shrink-0 flex-col border-r border-zinc-200 bg-white">
       <div className="border-b border-zinc-200 p-6">
         <h1 className="text-lg font-bold text-zinc-900">MaintenanceBuddy</h1>
         <p className="text-xs text-zinc-500">Admin Dashboard</p>
