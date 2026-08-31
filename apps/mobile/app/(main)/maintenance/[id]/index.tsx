@@ -19,6 +19,8 @@ import {
   MOBILE_STATUS_COLORS,
   SUITE_VISIT_STATUS_LABELS,
   technicianAddSuiteSchema,
+  formatFilterSize,
+  formatFilterSizeLabel,
 } from "@maintenancebuddy/shared";
 import type { SuiteVisitStatus } from "@maintenancebuddy/shared";
 import { supabase } from "@/lib/supabase";
@@ -29,6 +31,13 @@ interface VisitTile {
   status: SuiteVisitStatus;
   suite_number: string;
   suite_id: string;
+}
+
+interface FilterSizeOption {
+  id: string;
+  length_in: number;
+  width_in: number;
+  thickness_in: number;
 }
 
 interface AddSuiteForm {
@@ -60,11 +69,13 @@ export default function SuiteGridScreen() {
   const [addSuiteForm, setAddSuiteForm] = useState<AddSuiteForm>(emptyAddSuiteForm);
   const [addingSuite, setAddingSuite] = useState(false);
   const [pendingSync, setPendingSync] = useState(0);
+  const [filterSizes, setFilterSizes] = useState<FilterSizeOption[]>([]);
+  const [filterPickerOpen, setFilterPickerOpen] = useState(false);
 
   const loadData = useCallback(async () => {
     if (!maintenanceId) return;
 
-    const [{ data: maintenance }, { data: visitData }] = await Promise.all([
+    const [{ data: maintenance }, { data: visitData }, { data: sizes }] = await Promise.all([
       supabase
         .from("maintenances")
         .select("building_id, building:buildings(name)")
@@ -74,8 +85,15 @@ export default function SuiteGridScreen() {
         .from("suite_visits")
         .select("id, status, suite_id, suite:suites(suite_number)")
         .eq("maintenance_id", maintenanceId),
+      supabase
+        .from("filter_sizes")
+        .select("id, length_in, width_in, thickness_in")
+        .order("length_in")
+        .order("width_in")
+        .order("thickness_in"),
     ]);
 
+    setFilterSizes(sizes ?? []);
     setBuildingName(maintenance?.building?.name ?? "");
     setBuildingId(maintenance?.building_id ?? "");
     setVisits(
@@ -111,7 +129,17 @@ export default function SuiteGridScreen() {
       ...emptyAddSuiteForm,
       suite_number: prefillSuiteNumber ?? "",
     });
+    setFilterPickerOpen(false);
     setShowAddSuite(true);
+  }
+
+  const selectedFilterLabel = filterSizes.find(
+    (s) => formatFilterSize(s) === addSuiteForm.filter_size
+  );
+
+  function selectFilterSize(size: FilterSizeOption) {
+    setAddSuiteForm((f) => ({ ...f, filter_size: formatFilterSize(size) }));
+    setFilterPickerOpen(false);
   }
 
   function promptStartVisit(visit: VisitTile) {
@@ -367,12 +395,40 @@ export default function SuiteGridScreen() {
                 />
 
                 <Text style={styles.fieldLabel}>Filter size</Text>
-                <TextInput
-                  style={styles.fieldInput}
-                  placeholder="e.g. 16x25x1"
-                  value={addSuiteForm.filter_size}
-                  onChangeText={(filter_size) => setAddSuiteForm((f) => ({ ...f, filter_size }))}
-                />
+                <TouchableOpacity
+                  style={[styles.fieldInput, styles.filterSelect, filterSizes.length === 0 && styles.fieldDisabled]}
+                  onPress={() => filterSizes.length > 0 && setFilterPickerOpen((open) => !open)}
+                  disabled={filterSizes.length === 0}
+                >
+                  <Text
+                    style={
+                      addSuiteForm.filter_size ? styles.filterSelectValue : styles.filterSelectPlaceholder
+                    }
+                  >
+                    {selectedFilterLabel
+                      ? formatFilterSizeLabel(selectedFilterLabel)
+                      : filterSizes.length === 0
+                        ? "No filter sizes configured"
+                        : "Select filter size"}
+                  </Text>
+                </TouchableOpacity>
+                {filterPickerOpen && (
+                  <View style={styles.filterPickerList}>
+                    {filterSizes.map((size) => (
+                      <TouchableOpacity
+                        key={size.id}
+                        style={[
+                          styles.filterPickerOption,
+                          formatFilterSize(size) === addSuiteForm.filter_size &&
+                            styles.filterPickerOptionSelected,
+                        ]}
+                        onPress={() => selectFilterSize(size)}
+                      >
+                        <Text style={styles.filterPickerOptionText}>{formatFilterSizeLabel(size)}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
 
                 <Text style={styles.fieldLabel}>Filter quantity</Text>
                 <TextInput
@@ -496,6 +552,27 @@ const styles = StyleSheet.create({
     marginBottom: 14,
     backgroundColor: "#fff",
   },
+  fieldDisabled: { backgroundColor: "#f4f4f5", opacity: 0.8 },
+  filterSelect: { justifyContent: "center" },
+  filterSelectValue: { fontSize: 16, color: "#18181b" },
+  filterSelectPlaceholder: { fontSize: 16, color: "#a1a1aa" },
+  filterPickerList: {
+    marginTop: -10,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: "#e4e4e7",
+    borderRadius: 8,
+    overflow: "hidden",
+    backgroundColor: "#fff",
+  },
+  filterPickerOption: {
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f4f4f5",
+  },
+  filterPickerOptionSelected: { backgroundColor: "#eff6ff" },
+  filterPickerOptionText: { fontSize: 16, color: "#18181b" },
   fieldTextArea: { minHeight: 72, textAlignVertical: "top" },
   modalButton: { padding: 16, borderRadius: 10, marginBottom: 10 },
   addSuiteSubmit: { backgroundColor: "#22c55e", marginTop: 4 },
