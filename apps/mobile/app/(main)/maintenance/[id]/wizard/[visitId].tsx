@@ -359,6 +359,8 @@ export default function WizardScreen() {
           <Text style={styles.backText}>← Cancel</Text>
         </TouchableOpacity>
         <Text style={styles.suiteLabel}>Suite {suiteNumber}</Text>
+        <Text style={styles.stepIndicator}>Step 4 of 4</Text>
+        <Text style={styles.stepTitle}>Photo</Text>
         <Text style={styles.question}>Photo Preview</Text>
         <Image source={{ uri: photoUri }} style={styles.preview} />
         <View style={styles.buttonRow}>
@@ -411,6 +413,9 @@ export default function WizardScreen() {
 
         <Text style={styles.suiteLabel}>Suite {suiteNumber}</Text>
         <Text style={styles.stepIndicator}>Step {step + 1} of 4</Text>
+        <Text style={styles.stepTitle}>
+          {WIZARD_STEPS.find((s) => s.key === awaitingReason)?.title}
+        </Text>
         <Text style={styles.question}>{WIZARD_NO_REASON_PROMPTS[awaitingReason]}</Text>
 
         <TextInput
@@ -441,7 +446,8 @@ export default function WizardScreen() {
         Suite {suiteNumber}{isEditing ? " · Editing" : ""}
       </Text>
       <Text style={styles.stepIndicator}>Step {step + 1} of 4</Text>
-      <Text style={styles.question}>{currentStep?.question}</Text>
+      <Text style={styles.stepTitle}>{currentStep.title}</Text>
+      <Text style={styles.question}>{currentStep.question}</Text>
 
       {isEditing && currentAnswer !== undefined && currentStep?.key !== "photo" && (
         <Text style={styles.currentAnswer}>
@@ -485,8 +491,9 @@ const styles = StyleSheet.create({
   backButton: { marginBottom: 24 },
   backText: { fontSize: 16, color: "#3b82f6" },
   suiteLabel: { fontSize: 16, color: "#71717a", marginBottom: 8 },
-  stepIndicator: { fontSize: 14, color: "#a1a1aa", marginBottom: 16 },
-  question: { fontSize: 32, fontWeight: "700", color: "#18181b", marginBottom: 40, lineHeight: 40 },
+  stepIndicator: { fontSize: 14, color: "#a1a1aa", marginBottom: 8 },
+  stepTitle: { fontSize: 22, fontWeight: "700", color: "#18181b", marginBottom: 12 },
+  question: { fontSize: 28, fontWeight: "600", color: "#18181b", marginBottom: 40, lineHeight: 36 },
   currentAnswer: { fontSize: 16, color: "#71717a", marginTop: -24, marginBottom: 24 },
   buttonRow: { flexDirection: "row", gap: 16, marginTop: "auto", marginBottom: 40 },
   yesButton: {
