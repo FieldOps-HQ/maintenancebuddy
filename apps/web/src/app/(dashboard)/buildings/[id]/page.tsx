@@ -1,6 +1,5 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { BuildingHeader } from "@/components/buildings/building-form";
 import { BuildingDetailTabs } from "@/components/buildings/building-detail-tabs";
 
 export default async function BuildingDetailPage({
@@ -37,10 +36,9 @@ export default async function BuildingDetailPage({
     ]);
 
   return (
-    <div className="space-y-8">
-      <BuildingHeader building={building} />
-
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <BuildingDetailTabs
+        building={building}
         buildingId={id}
         filterSizes={filterSizes ?? []}
         suites={suites ?? []}

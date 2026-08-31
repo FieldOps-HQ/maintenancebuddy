@@ -1,10 +1,10 @@
 "use client";
 
-import type { Suite, HvacUnit } from "@maintenancebuddy/shared";
+import type { Building, Suite, HvacUnit } from "@maintenancebuddy/shared";
 import type { MaintenanceStatus } from "@maintenancebuddy/shared";
+import { BuildingHeader } from "@/components/buildings/building-form";
 import { ContactForm } from "@/components/buildings/contact-form";
 import { SuitesSpreadsheet } from "@/components/buildings/suite-form";
-import { CsvImport } from "@/components/buildings/csv-import";
 import { BuildingMaintenances } from "@/components/buildings/building-maintenances";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -35,12 +35,14 @@ type BuildingMaintenance = {
 type SuiteWithUnits = Suite & { hvac_units?: HvacUnit[] };
 
 export function BuildingDetailTabs({
+  building,
   buildingId,
   filterSizes,
   suites,
   contacts,
   maintenances,
 }: {
+  building: Building;
   buildingId: string;
   filterSizes: FilterSizeOption[];
   suites: SuiteWithUnits[];
@@ -48,23 +50,25 @@ export function BuildingDetailTabs({
   maintenances: BuildingMaintenance[];
 }) {
   return (
-    <Tabs defaultValue="suites">
-      <TabsList>
-        <TabsTrigger value="suites">Suites ({suites.length})</TabsTrigger>
-        <TabsTrigger value="contacts">Contacts ({contacts.length})</TabsTrigger>
-        <TabsTrigger value="maintenances">Maintenances ({maintenances.length})</TabsTrigger>
-      </TabsList>
+    <Tabs defaultValue="suites" className="flex min-h-0 flex-1 flex-col gap-0 space-y-0">
+      <div className="sticky top-0 z-20 shrink-0 space-y-4 bg-slate-50 pb-4">
+        <BuildingHeader building={building} />
+        <TabsList>
+          <TabsTrigger value="suites">Suites ({suites.length})</TabsTrigger>
+          <TabsTrigger value="contacts">Contacts ({contacts.length})</TabsTrigger>
+          <TabsTrigger value="maintenances">Maintenances ({maintenances.length})</TabsTrigger>
+        </TabsList>
+      </div>
 
-      <TabsContent value="suites" className="space-y-4">
+      <TabsContent value="suites" className="mt-4 flex min-h-0 flex-1 flex-col">
         <SuitesSpreadsheet
           buildingId={buildingId}
           filterSizes={filterSizes}
           suites={suites}
         />
-        <CsvImport buildingId={buildingId} />
       </TabsContent>
 
-      <TabsContent value="contacts">
+      <TabsContent value="contacts" className="mt-4 min-h-0 flex-1 overflow-y-auto">
         <Card>
           <CardHeader>
             <CardTitle>Contacts ({contacts.length})</CardTitle>
@@ -93,7 +97,7 @@ export function BuildingDetailTabs({
         </Card>
       </TabsContent>
 
-      <TabsContent value="maintenances">
+      <TabsContent value="maintenances" className="mt-4 min-h-0 flex-1 overflow-y-auto">
         <BuildingMaintenances maintenances={maintenances} />
       </TabsContent>
     </Tabs>
