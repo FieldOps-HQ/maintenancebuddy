@@ -4,8 +4,6 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   suiteSchema,
-  suiteCreateSchema,
-  suiteUnitDraftSchema,
   formatFilterSize,
   formatFilterSizeLabel,
 } from "@maintenancebuddy/shared";
@@ -32,14 +30,32 @@ type FilterSizeOption = {
   thickness_in: number;
 };
 
-type UnitDraftRow = {
+type SuiteTableRow = {
   id: string;
-  name: string;
+  suite_number: string;
+  floor: string;
   filter_size: string;
+  unit_location: string;
 };
 
-function newUnitRow(filterSize = ""): UnitDraftRow {
-  return { id: crypto.randomUUID(), name: "Main unit", filter_size: filterSize };
+function newTableRow(): SuiteTableRow {
+  return {
+    id: crypto.randomUUID(),
+    suite_number: "",
+    floor: "",
+    filter_size: "",
+    unit_location: "",
+  };
+}
+
+function suiteCounts(rows: SuiteTableRow[]) {
+  const counts = new Map<string, number>();
+  for (const row of rows) {
+    const key = row.suite_number.trim();
+    if (!key) continue;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return counts;
 }
 
 export function SuiteForm({
@@ -52,72 +68,65 @@ export function SuiteForm({
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [suiteFilterSize, setSuiteFilterSize] = useState("");
-  const [unitRows, setUnitRows] = useState<UnitDraftRow[]>([newUnitRow()]);
+  const [rows, setRows] = useState<SuiteTableRow[]>([newTableRow(), newTableRow(), newTableRow()]);
 
-  function syncFirstUnitFilter(size: string) {
-    setSuiteFilterSize(size);
-    setUnitRows((rows) =>
-      rows.map((row, i) => (i === 0 ? { ...row, filter_size: size } : row))
-    );
+  function updateRow(id: string, patch: Partial<SuiteTableRow>) {
+    setRows((current) => current.map((row) => (row.id === id ? { ...row, ...patch } : row)));
   }
 
-  function addUnitRow() {
-    setUnitRows((rows) => [
-      ...rows,
-      { id: crypto.randomUUID(), name: "", filter_size: suiteFilterSize },
-    ]);
+  function addRow() {
+    setRows((current) => [...current, newTableRow()]);
   }
 
-  function updateUnitRow(id: string, patch: Partial<UnitDraftRow>) {
-    setUnitRows((rows) => rows.map((row) => (row.id === id ? { ...row, ...patch } : row)));
+  function removeRow(id: string) {
+    setRows((current) => (current.length <= 1 ? current : current.filter((row) => row.id !== id)));
   }
 
-  function removeUnitRow(id: string) {
-    setUnitRows((rows) => (rows.length <= 1 ? rows : rows.filter((row) => row.id !== id)));
-  }
+  function validateRows(filledRows: SuiteTableRow[]): string | null {
+    const counts = suiteCounts(filledRows);
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setLoading(true);
-    setError("");
+    for (const row of filledRows) {
+      if (!row.suite_number.trim()) return "Each row needs a suite number.";
+      if (!row.filter_size) return `Suite ${row.suite_number.trim()} needs a filter size.`;
 
-    const formData = new FormData(e.currentTarget);
-    const suiteParsed = suiteCreateSchema.safeParse({
-      suite_number: formData.get("suite_number") as string,
-      floor: (formData.get("floor") as string) || undefined,
-      filter_size: suiteFilterSize,
-    });
-
-    if (!suiteParsed.success) {
-      setError(suiteParsed.error.errors[0]?.message ?? "Invalid input");
-      setLoading(false);
-      return;
+      const suiteKey = row.suite_number.trim();
+      const isMultiUnit = (counts.get(suiteKey) ?? 0) > 1;
+      if (isMultiUnit && !row.unit_location.trim()) {
+        return `Suite ${suiteKey} has multiple units — enter a location for each row.`;
+      }
     }
 
-    const unitsParsed = unitRows.map((row) =>
-      suiteUnitDraftSchema.safeParse({
-        name: row.name.trim(),
-        filter_size: row.filter_size || suiteParsed.data.filter_size,
-      })
-    );
-
-    const firstInvalid = unitsParsed.find((p) => !p.success);
-    if (firstInvalid && !firstInvalid.success) {
-      setError(firstInvalid.error.errors[0]?.message ?? "Check unit fields");
-      setLoading(false);
-      return;
+    const floorsBySuite = new Map<string, Set<string>>();
+    for (const row of filledRows) {
+      const suiteKey = row.suite_number.trim();
+      const floor = row.floor.trim();
+      if (!floorsBySuite.has(suiteKey)) floorsBySuite.set(suiteKey, new Set());
+      if (floor) floorsBySuite.get(suiteKey)!.add(floor);
     }
 
-    const units = unitsParsed.map((p) => p.data!);
-    const supabase = createClient();
+    for (const [suiteKey, floors] of floorsBySuite) {
+      if (floors.size > 1) {
+        return `Suite ${suiteKey} has conflicting floor values across rows.`;
+      }
+    }
+
+    return null;
+  }
+
+  async function createSuiteWithUnits(
+    supabase: ReturnType<typeof createClient>,
+    suiteNumber: string,
+    floor: string | undefined,
+    units: { filter_size: string; name: string; location_notes?: string }[]
+  ): Promise<string | null> {
+    const primaryFilter = units[0]?.filter_size;
 
     const { data: suite, error: suiteError } = await supabase
       .from("suites")
       .insert({
-        suite_number: suiteParsed.data.suite_number,
-        floor: suiteParsed.data.floor,
-        filter_size: suiteParsed.data.filter_size,
+        suite_number: suiteNumber,
+        floor,
+        filter_size: primaryFilter,
         filter_quantity: 1,
         building_id: buildingId,
       })
@@ -125,13 +134,10 @@ export function SuiteForm({
       .single();
 
     if (suiteError || !suite) {
-      setError(
-        suiteError?.code === "23505"
-          ? "A suite with this number already exists in the building."
-          : suiteError?.message ?? "Failed to create suite"
-      );
-      setLoading(false);
-      return;
+      if (suiteError?.code === "23505") {
+        return `Suite ${suiteNumber} already exists in this building.`;
+      }
+      return suiteError?.message ?? `Failed to create suite ${suiteNumber}.`;
     }
 
     const { data: mainUnit } = await supabase
@@ -144,22 +150,28 @@ export function SuiteForm({
     const [firstUnit, ...extraUnits] = units;
 
     if (mainUnit) {
-      await supabase
+      const { error: updateError } = await supabase
         .from("hvac_units")
         .update({
           name: firstUnit.name,
           filter_size: firstUnit.filter_size,
           filter_quantity: 1,
+          location_notes: firstUnit.location_notes ?? null,
         })
         .eq("id", mainUnit.id);
+
+      if (updateError) return updateError.message;
     } else {
-      await supabase.from("hvac_units").insert({
+      const { error: insertError } = await supabase.from("hvac_units").insert({
         suite_id: suite.id,
         name: firstUnit.name,
         filter_size: firstUnit.filter_size,
         filter_quantity: 1,
+        location_notes: firstUnit.location_notes ?? null,
         sort_order: 0,
       });
+
+      if (insertError) return insertError.message;
     }
 
     if (extraUnits.length > 0) {
@@ -169,100 +181,186 @@ export function SuiteForm({
           name: unit.name,
           filter_size: unit.filter_size,
           filter_quantity: 1,
+          location_notes: unit.location_notes ?? null,
           sort_order: index + 1,
         }))
       );
 
       if (unitsError) {
-        setError(unitsError.message);
+        if (unitsError.code === "23505") {
+          return `Duplicate unit name in suite ${suiteNumber}.`;
+        }
+        return unitsError.message;
+      }
+    }
+
+    return null;
+  }
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+
+    const filledRows = rows.filter(
+      (row) =>
+        row.suite_number.trim() ||
+        row.floor.trim() ||
+        row.filter_size ||
+        row.unit_location.trim()
+    );
+
+    if (filledRows.length === 0) {
+      setError("Add at least one row with a suite number and filter size.");
+      setLoading(false);
+      return;
+    }
+
+    const validationError = validateRows(filledRows);
+    if (validationError) {
+      setError(validationError);
+      setLoading(false);
+      return;
+    }
+
+    const grouped = new Map<string, SuiteTableRow[]>();
+    for (const row of filledRows) {
+      const key = row.suite_number.trim();
+      if (!grouped.has(key)) grouped.set(key, []);
+      grouped.get(key)!.push(row);
+    }
+
+    const supabase = createClient();
+
+    for (const [suiteNumber, suiteRows] of grouped) {
+      const counts = suiteCounts(filledRows);
+      const isMultiUnit = (counts.get(suiteNumber) ?? 0) > 1;
+      const floor = suiteRows.find((r) => r.floor.trim())?.floor.trim() || undefined;
+
+      const units = suiteRows.map((row) => {
+        const location = row.unit_location.trim();
+        if (isMultiUnit) {
+          return {
+            filter_size: row.filter_size,
+            name: location,
+          };
+        }
+        return {
+          filter_size: row.filter_size,
+          name: "Main unit",
+          location_notes: location || undefined,
+        };
+      });
+
+      const createError = await createSuiteWithUnits(supabase, suiteNumber, floor, units);
+      if (createError) {
+        setError(createError);
         setLoading(false);
         return;
       }
     }
 
-    setSuiteFilterSize("");
-    setUnitRows([newUnitRow()]);
-    (e.target as HTMLFormElement).reset();
+    setRows([newTableRow(), newTableRow(), newTableRow()]);
     router.refresh();
     setLoading(false);
   }
 
+  const counts = suiteCounts(rows);
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <div>
-          <Label htmlFor="suite_number" className="sr-only">Suite</Label>
-          <Input id="suite_number" name="suite_number" placeholder="Suite # *" required />
-        </div>
-        <div>
-          <Label htmlFor="floor" className="sr-only">Floor</Label>
-          <Input id="floor" name="floor" placeholder="Floor" />
-        </div>
-        <div>
-          <Label htmlFor="filter_size" className="sr-only">Filter size</Label>
-          <Select
-            id="filter_size"
-            name="filter_size"
-            value={suiteFilterSize}
-            onChange={(e) => syncFirstUnitFilter(e.target.value)}
-            required
-          >
-            <option value="" disabled>
-              Filter size *
-            </option>
-            {filterSizes.map((size) => {
-              const value = formatFilterSize(size);
+    <form onSubmit={handleSubmit} className="space-y-3">
+      <p className="text-sm text-zinc-600">
+        Enter one row per HVAC unit. Repeat the same suite number on multiple rows to add several
+        units to one suite — a unit location is required when a suite appears more than once.
+      </p>
+
+      <div className="overflow-x-auto rounded-lg border border-zinc-200">
+        <table className="w-full min-w-[640px] text-sm">
+          <thead>
+            <tr className="border-b bg-zinc-50 text-left text-zinc-500">
+              <th className="px-3 py-2 font-medium">Suite #</th>
+              <th className="px-3 py-2 font-medium">Floor</th>
+              <th className="px-3 py-2 font-medium">Filter size</th>
+              <th className="px-3 py-2 font-medium">Unit location</th>
+              <th className="px-3 py-2 w-10" />
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => {
+              const suiteKey = row.suite_number.trim();
+              const needsLocation = suiteKey ? (counts.get(suiteKey) ?? 0) > 1 : false;
+
               return (
-                <option key={size.id} value={value}>
-                  {formatFilterSizeLabel(size)}
-                </option>
+                <tr key={row.id} className="border-b border-zinc-100 last:border-0">
+                  <td className="px-3 py-2">
+                    <Input
+                      placeholder="e.g. 201"
+                      value={row.suite_number}
+                      onChange={(e) => updateRow(row.id, { suite_number: e.target.value })}
+                      className="h-8"
+                    />
+                  </td>
+                  <td className="px-3 py-2">
+                    <Input
+                      placeholder="e.g. 2"
+                      value={row.floor}
+                      onChange={(e) => updateRow(row.id, { floor: e.target.value })}
+                      className="h-8"
+                    />
+                  </td>
+                  <td className="px-3 py-2">
+                    <Select
+                      value={row.filter_size}
+                      onChange={(e) => updateRow(row.id, { filter_size: e.target.value })}
+                      className="h-8"
+                      disabled={filterSizes.length === 0}
+                    >
+                      <option value="">Select size</option>
+                      {filterSizes.map((size) => {
+                        const value = formatFilterSize(size);
+                        return (
+                          <option key={size.id} value={value}>
+                            {formatFilterSizeLabel(size)}
+                          </option>
+                        );
+                      })}
+                    </Select>
+                  </td>
+                  <td className="px-3 py-2">
+                    <Input
+                      placeholder={needsLocation ? "Required for multi-unit" : "Optional"}
+                      value={row.unit_location}
+                      onChange={(e) => updateRow(row.id, { unit_location: e.target.value })}
+                      className="h-8"
+                      required={needsLocation}
+                    />
+                  </td>
+                  <td className="px-3 py-2">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 px-2 text-zinc-400 hover:text-red-600"
+                      onClick={() => removeRow(row.id)}
+                      disabled={rows.length <= 1}
+                      aria-label="Remove row"
+                    >
+                      ×
+                    </Button>
+                  </td>
+                </tr>
               );
             })}
-          </Select>
-        </div>
-        <Button type="submit" disabled={loading || filterSizes.length === 0} size="sm">
-          {loading ? "Adding..." : "Add suite"}
-        </Button>
+          </tbody>
+        </table>
       </div>
 
-      <div className="space-y-2 rounded-lg border border-zinc-100 bg-zinc-50/50 p-3">
-        <p className="text-sm font-medium text-zinc-700">HVAC units</p>
-        {unitRows.map((row, index) => (
-          <div key={row.id} className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
-            <Input
-              placeholder={index === 0 ? "Main unit" : "Unit name *"}
-              value={row.name}
-              onChange={(e) => updateUnitRow(row.id, { name: e.target.value })}
-              required
-            />
-            <Select
-              value={row.filter_size}
-              onChange={(e) => updateUnitRow(row.id, { filter_size: e.target.value })}
-              required
-            >
-              <option value="" disabled>
-                Filter size *
-              </option>
-              {filterSizes.map((size) => {
-                const value = formatFilterSize(size);
-                return (
-                  <option key={size.id} value={value}>
-                    {formatFilterSizeLabel(size)}
-                  </option>
-                );
-              })}
-            </Select>
-            {index > 0 ? (
-              <Button type="button" variant="outline" size="sm" onClick={() => removeUnitRow(row.id)}>
-                Remove
-              </Button>
-            ) : (
-              <span />
-            )}
-          </div>
-        ))}
-        <Button type="button" variant="outline" size="sm" onClick={addUnitRow}>
-          + Add unit
+      <div className="flex flex-wrap items-center gap-2">
+        <Button type="button" variant="outline" size="sm" onClick={addRow}>
+          + Add row
+        </Button>
+        <Button type="submit" disabled={loading || filterSizes.length === 0} size="sm">
+          {loading ? "Adding..." : "Add suites"}
         </Button>
       </div>
 
