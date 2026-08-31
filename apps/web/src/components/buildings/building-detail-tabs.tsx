@@ -3,18 +3,11 @@
 import type { Suite, HvacUnit } from "@maintenancebuddy/shared";
 import type { MaintenanceStatus } from "@maintenancebuddy/shared";
 import { ContactForm } from "@/components/buildings/contact-form";
-import { SuiteForm, SuiteRow } from "@/components/buildings/suite-form";
+import { SuitesSpreadsheet } from "@/components/buildings/suite-form";
 import { CsvImport } from "@/components/buildings/csv-import";
 import { BuildingMaintenances } from "@/components/buildings/building-maintenances";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Table,
-  TableBody,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 
 type FilterSizeOption = {
   id: string;
@@ -62,47 +55,13 @@ export function BuildingDetailTabs({
         <TabsTrigger value="maintenances">Maintenances ({maintenances.length})</TabsTrigger>
       </TabsList>
 
-      <TabsContent value="suites">
-        <SuiteForm buildingId={buildingId} filterSizes={filterSizes} />
+      <TabsContent value="suites" className="space-y-4">
+        <SuitesSpreadsheet
+          buildingId={buildingId}
+          filterSizes={filterSizes}
+          suites={suites}
+        />
         <CsvImport buildingId={buildingId} />
-
-        <Card>
-          <CardHeader>
-            <CardTitle>All Suites ({suites.length})</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0 pb-2">
-            <div className="max-h-[32rem] overflow-auto px-2">
-              {suites.length > 0 ? (
-                <Table>
-                  <TableHeader>
-                    <TableRow className="hover:bg-transparent">
-                      <TableHead>Suite</TableHead>
-                      <TableHead>Floor</TableHead>
-                      <TableHead>Filter</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {suites.map((suite) => (
-                      <SuiteRow
-                        key={suite.id}
-                        suite={suite}
-                        filterSizes={filterSizes}
-                        hvacUnits={(suite.hvac_units ?? []).sort(
-                          (a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name)
-                        )}
-                      />
-                    ))}
-                  </TableBody>
-                </Table>
-              ) : (
-                <p className="px-6 py-8 text-center text-sm text-slate-500">
-                  No suites yet. Add suites using the form above.
-                </p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
       </TabsContent>
 
       <TabsContent value="contacts">
