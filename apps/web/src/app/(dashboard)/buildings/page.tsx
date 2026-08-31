@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { formatBuildingAddress } from "@maintenancebuddy/shared";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Plus } from "lucide-react";
+import { PageHeader } from "@/components/layout/page-header";
+import { ChevronRight, Plus } from "lucide-react";
 import { BuildingForm } from "@/components/buildings/building-form";
 
 export default async function BuildingsPage() {
@@ -25,18 +25,16 @@ export default async function BuildingsPage() {
 
   return (
     <div className="space-y-8">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Buildings</h1>
-          <p className="text-zinc-500">Manage buildings, suites, and contacts</p>
-        </div>
-      </div>
+      <PageHeader
+        title="Buildings"
+        description="Manage buildings, suites, and contacts"
+      />
 
       <div className="grid gap-8 lg:grid-cols-3">
         <Card className="lg:col-span-1">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
-              <Plus className="h-4 w-4" /> Add Building
+              <Plus className="h-4 w-4 text-sky-600" /> Add Building
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -44,27 +42,30 @@ export default async function BuildingsPage() {
           </CardContent>
         </Card>
 
-        <div className="lg:col-span-2 space-y-4">
+        <div className="space-y-3 lg:col-span-2">
           {!buildings?.length ? (
             <Card>
-              <CardContent className="py-8 text-center text-zinc-500">
-                No buildings yet. Add your first building.
+              <CardContent className="py-12 text-center">
+                <p className="text-slate-500">No buildings yet. Add your first building.</p>
               </CardContent>
             </Card>
           ) : (
             buildingsWithCounts.map((building) => (
               <Link key={building.id} href={`/buildings/${building.id}`}>
-                <Card className="transition-colors hover:bg-zinc-50">
+                <Card className="group transition-all hover:-translate-y-0.5 hover:border-sky-200/60 hover:shadow-md">
                   <CardContent className="flex items-center justify-between py-4">
                     <div>
-                      <p className="font-semibold">{building.name}</p>
-                      <p className="text-sm text-zinc-500">
+                      <p className="font-semibold text-slate-900 group-hover:text-sky-700">{building.name}</p>
+                      <p className="text-sm text-slate-500">
                         {formatBuildingAddress(building)}
                       </p>
                     </div>
-                    <div className="text-right text-sm text-zinc-500">
-                      <p>{building.suiteCount} suites</p>
-                      <p>{building.contactCount} contacts</p>
+                    <div className="flex items-center gap-4">
+                      <div className="text-right text-sm text-slate-500">
+                        <p>{building.suiteCount} suites</p>
+                        <p>{building.contactCount} contacts</p>
+                      </div>
+                      <ChevronRight className="h-5 w-5 text-slate-300 transition-colors group-hover:text-sky-500" />
                     </div>
                   </CardContent>
                 </Card>

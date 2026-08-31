@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FilterSizeForm, FilterSizeRow } from "@/components/filter-sizes/filter-size-form";
+import { PageHeader } from "@/components/layout/page-header";
 
 export default async function FilterSizesPage() {
   const supabase = await createClient();
@@ -13,12 +14,10 @@ export default async function FilterSizesPage() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold text-zinc-900">Filter Sizes</h1>
-        <p className="mt-1 text-sm text-zinc-500">
-          Manage filter sizes by length, width, and thickness (inches) for suite dropdowns.
-        </p>
-      </div>
+      <PageHeader
+        title="Filter Sizes"
+        description="Manage filter sizes by length, width, and thickness (inches) for suite dropdowns."
+      />
 
       <Card>
         <CardHeader>
@@ -35,7 +34,7 @@ export default async function FilterSizesPage() {
         </CardHeader>
         <CardContent className="space-y-2">
           {!filterSizes?.length ? (
-            <p className="text-sm text-zinc-500">No filter sizes yet. Add one above.</p>
+            <p className="text-sm text-slate-500">No filter sizes yet. Add one above.</p>
           ) : (
             filterSizes.map((size) => <FilterSizeRow key={size.id} filterSize={size} />)
           )}

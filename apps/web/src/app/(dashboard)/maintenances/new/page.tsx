@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MaintenanceForm } from "@/components/maintenances/maintenance-form";
+import { PageHeader } from "@/components/layout/page-header";
 import { ACTIVE_MAINTENANCE_STATUSES } from "@maintenancebuddy/shared";
 
 export default async function NewMaintenancePage() {
@@ -17,10 +18,10 @@ export default async function NewMaintenancePage() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Schedule Maintenance</h1>
-        <p className="text-zinc-500">Create a new maintenance job and assign technicians</p>
-      </div>
+      <PageHeader
+        title="Schedule Maintenance"
+        description="Create a new maintenance job and assign technicians"
+      />
 
       <Card>
         <CardHeader>

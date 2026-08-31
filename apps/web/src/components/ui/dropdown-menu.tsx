@@ -89,7 +89,7 @@ export function DropdownMenuContent({
     <div
       role="menu"
       className={cn(
-        "absolute z-50 mt-1 min-w-[8rem] rounded-md border border-zinc-200 bg-white py-1 shadow-md",
+        "absolute z-50 mt-1 min-w-[8rem] overflow-hidden rounded-xl border border-slate-200/80 bg-white py-1 shadow-lg",
         align === "end" ? "right-0" : "left-0",
         className
       )}
@@ -117,8 +117,8 @@ export function DropdownMenuItem({
         setOpen(false);
       }}
       className={cn(
-        "flex w-full items-center px-3 py-1.5 text-left text-sm hover:bg-zinc-50",
-        destructive ? "text-red-600" : "text-zinc-900",
+        "flex w-full items-center px-3 py-2 text-left text-sm transition-colors hover:bg-slate-50",
+        destructive ? "text-red-600 hover:bg-red-50" : "text-slate-700",
         className
       )}
       {...props}

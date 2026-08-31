@@ -10,7 +10,7 @@ import {
 import type { Suite, HvacUnit } from "@maintenancebuddy/shared";
 import { AddHvacUnitForm, HvacUnitRow } from "@/components/buildings/hvac-unit-form";
 import { createClient } from "@/lib/supabase/client";
-import { MoreHorizontal } from "lucide-react";
+import { MoreHorizontal, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -22,6 +22,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { cn } from "@/lib/utils";
 
 type FilterSizeOption = {
   id: string;
@@ -268,109 +278,128 @@ export function SuiteForm({
   const counts = suiteCounts(rows);
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-3">
-      <p className="text-sm text-zinc-600">
-        Enter one row per HVAC unit. Repeat the same suite number on multiple rows to add several
-        units to one suite — a unit location is required when a suite appears more than once.
-      </p>
+    <Card className="hover:shadow-sm">
+      <CardHeader className="pb-4">
+        <CardTitle>Add suites</CardTitle>
+        <CardDescription>
+          Enter one row per HVAC unit. Repeat the same suite number on multiple rows to add several
+          units to one suite — a unit location is required when a suite appears more than once.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-white">
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead>Suite #</TableHead>
+                  <TableHead>Floor</TableHead>
+                  <TableHead>Filter size</TableHead>
+                  <TableHead>Unit location</TableHead>
+                  <TableHead className="w-12" />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rows.map((row, index) => {
+                  const suiteKey = row.suite_number.trim();
+                  const isMultiUnit = suiteKey ? (counts.get(suiteKey) ?? 0) > 1 : false;
+                  const needsLocation = isMultiUnit;
+                  const isLast = index === rows.length - 1;
 
-      <div className="overflow-x-auto rounded-lg border border-zinc-200">
-        <table className="w-full min-w-[640px] text-sm">
-          <thead>
-            <tr className="border-b bg-zinc-50 text-left text-zinc-500">
-              <th className="px-3 py-2 font-medium">Suite #</th>
-              <th className="px-3 py-2 font-medium">Floor</th>
-              <th className="px-3 py-2 font-medium">Filter size</th>
-              <th className="px-3 py-2 font-medium">Unit location</th>
-              <th className="px-3 py-2 w-10" />
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => {
-              const suiteKey = row.suite_number.trim();
-              const needsLocation = suiteKey ? (counts.get(suiteKey) ?? 0) > 1 : false;
-
-              return (
-                <tr key={row.id} className="border-b border-zinc-100 last:border-0">
-                  <td className="px-3 py-2">
-                    <Input
-                      placeholder="e.g. 201"
-                      value={row.suite_number}
-                      onChange={(e) => updateRow(row.id, { suite_number: e.target.value })}
-                      className="h-8"
-                    />
-                  </td>
-                  <td className="px-3 py-2">
-                    <Input
-                      placeholder="e.g. 2"
-                      value={row.floor}
-                      onChange={(e) => updateRow(row.id, { floor: e.target.value })}
-                      className="h-8"
-                    />
-                  </td>
-                  <td className="px-3 py-2">
-                    <Select
-                      value={row.filter_size}
-                      onChange={(e) => updateRow(row.id, { filter_size: e.target.value })}
-                      className="h-8"
-                      disabled={filterSizes.length === 0}
+                  return (
+                    <TableRow
+                      key={row.id}
+                      className={cn(
+                        isMultiUnit && "border-l-2 border-l-sky-400 bg-sky-50/30",
+                        isLast && "border-b-0 border-dashed"
+                      )}
                     >
-                      <option value="">Select size</option>
-                      {filterSizes.map((size) => {
-                        const value = formatFilterSize(size);
-                        return (
-                          <option key={size.id} value={value}>
-                            {formatFilterSizeLabel(size)}
-                          </option>
-                        );
-                      })}
-                    </Select>
-                  </td>
-                  <td className="px-3 py-2">
-                    <Input
-                      placeholder={needsLocation ? "Required for multi-unit" : "Optional"}
-                      value={row.unit_location}
-                      onChange={(e) => updateRow(row.id, { unit_location: e.target.value })}
-                      className="h-8"
-                      required={needsLocation}
-                    />
-                  </td>
-                  <td className="px-3 py-2">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 px-2 text-zinc-400 hover:text-red-600"
-                      onClick={() => removeRow(row.id)}
-                      disabled={rows.length <= 1}
-                      aria-label="Remove row"
-                    >
-                      ×
-                    </Button>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+                      <TableCell>
+                        <Input
+                          placeholder="e.g. 201"
+                          value={row.suite_number}
+                          onChange={(e) => updateRow(row.id, { suite_number: e.target.value })}
+                          className="h-9 border-transparent bg-transparent shadow-none hover:border-slate-200 focus-visible:border-sky-400 focus-visible:bg-white"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Input
+                          placeholder="e.g. 2"
+                          value={row.floor}
+                          onChange={(e) => updateRow(row.id, { floor: e.target.value })}
+                          className="h-9 border-transparent bg-transparent shadow-none hover:border-slate-200 focus-visible:border-sky-400 focus-visible:bg-white"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Select
+                          value={row.filter_size}
+                          onChange={(e) => updateRow(row.id, { filter_size: e.target.value })}
+                          className="h-9 border-transparent bg-transparent shadow-none hover:border-slate-200 focus-visible:border-sky-400 focus-visible:bg-white"
+                          disabled={filterSizes.length === 0}
+                        >
+                          <option value="">Select size</option>
+                          {filterSizes.map((size) => {
+                            const value = formatFilterSize(size);
+                            return (
+                              <option key={size.id} value={value}>
+                                {formatFilterSizeLabel(size)}
+                              </option>
+                            );
+                          })}
+                        </Select>
+                      </TableCell>
+                      <TableCell>
+                        <Input
+                          placeholder={needsLocation ? "Required for multi-unit" : "Optional"}
+                          value={row.unit_location}
+                          onChange={(e) => updateRow(row.id, { unit_location: e.target.value })}
+                          className="h-9 border-transparent bg-transparent shadow-none hover:border-slate-200 focus-visible:border-sky-400 focus-visible:bg-white"
+                          required={needsLocation}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                          onClick={() => removeRow(row.id)}
+                          disabled={rows.length <= 1}
+                          aria-label="Remove row"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <Button type="button" variant="outline" size="sm" onClick={addRow}>
-          + Add row
-        </Button>
-        <Button type="submit" disabled={loading || filterSizes.length === 0} size="sm">
-          {loading ? "Adding..." : "Add suites"}
-        </Button>
-      </div>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <Button type="button" variant="outline" size="sm" onClick={addRow}>
+              <Plus className="h-4 w-4" />
+              Add row
+            </Button>
+            <Button type="submit" disabled={loading || filterSizes.length === 0} size="sm">
+              {loading ? "Adding..." : "Add suites"}
+            </Button>
+          </div>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
-      {filterSizes.length === 0 && (
-        <p className="text-xs text-zinc-500">
-          Add filter sizes under Filter Sizes in the sidebar first.
-        </p>
-      )}
-    </form>
+          {error && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {error}
+            </div>
+          )}
+          {filterSizes.length === 0 && (
+            <p className="text-xs text-slate-500">
+              Add filter sizes under Filter Sizes in the sidebar first.
+            </p>
+          )}
+        </form>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -396,7 +425,7 @@ function SuiteFields({
         <Label htmlFor={`${idPrefix}-floor`}>Floor</Label>
         <Input id={`${idPrefix}-floor`} name="floor" defaultValue={suite?.floor ?? ""} />
       </div>
-      <p className="sm:col-span-2 text-xs text-zinc-500">
+      <p className="sm:col-span-2 text-xs text-slate-500">
         Manage HVAC units and filter sizes in the units section below.
       </p>
     </div>
@@ -475,12 +504,16 @@ export function SuiteRow({
 
   if (editing) {
     return (
-      <tr>
-        <td colSpan={4} className="py-3">
-          <form onSubmit={handleUpdate} className="space-y-3 rounded-lg border border-zinc-100 bg-zinc-50 p-4">
-            <p className="text-sm font-medium">Edit Suite {suite.suite_number}</p>
+      <TableRow className="hover:bg-transparent">
+        <TableCell colSpan={4} className="py-4">
+          <form onSubmit={handleUpdate} className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/50 p-4">
+            <p className="text-sm font-medium text-slate-900">Edit Suite {suite.suite_number}</p>
             <SuiteFields suite={suite} idPrefix={`edit-${suite.id}`} />
-            {error && <p className="text-sm text-red-600">{error}</p>}
+            {error && (
+              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                {error}
+              </div>
+            )}
             <div className="flex gap-2">
               <Button type="submit" size="sm" disabled={loading}>
                 {loading ? "Saving..." : "Save"}
@@ -499,8 +532,8 @@ export function SuiteRow({
               </Button>
             </div>
           </form>
-        </td>
-      </tr>
+        </TableCell>
+      </TableRow>
     );
   }
 
@@ -511,28 +544,28 @@ export function SuiteRow({
 
   return (
     <>
-      <tr className="border-b border-zinc-50">
-        <td className="py-2 pr-4 font-medium">
+      <TableRow>
+        <TableCell className="font-medium text-slate-900">
           <button
             type="button"
-            className="text-left hover:underline"
+            className="text-left transition-colors hover:text-sky-600"
             onClick={() => setExpanded((v) => !v)}
           >
             {suite.suite_number}
           </button>
-        </td>
-        <td className="py-2 pr-4">{suite.floor ?? "—"}</td>
-        <td className="py-2 pr-4">
+        </TableCell>
+        <TableCell className="text-slate-600">{suite.floor ?? "—"}</TableCell>
+        <TableCell>
           {hvacUnits.length === 1 && hvacUnits[0].filter_size ? (
             <Badge variant="secondary">{hvacUnits[0].filter_size}</Badge>
           ) : (
-            <span className="text-zinc-600">{unitSummary}</span>
+            <span className="text-slate-600">{unitSummary}</span>
           )}
-        </td>
-        <td className="py-2">
+        </TableCell>
+        <TableCell>
           <DropdownMenu>
             <DropdownMenuTrigger
-              className="inline-flex h-8 w-8 items-center justify-center rounded-md text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
               aria-label="Suite actions"
             >
               <MoreHorizontal className="h-4 w-4" />
@@ -559,13 +592,13 @@ export function SuiteRow({
             </DropdownMenuContent>
           </DropdownMenu>
           {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
-        </td>
-      </tr>
+        </TableCell>
+      </TableRow>
       {expanded && (
-        <tr>
-          <td colSpan={4} className="pb-4 pl-6">
-            <div className="space-y-3 rounded-lg border border-zinc-100 bg-zinc-50/50 p-4">
-              <p className="text-sm font-medium text-zinc-700">HVAC units</p>
+        <TableRow className="hover:bg-transparent">
+          <TableCell colSpan={4} className="pb-4 pl-8">
+            <div className="space-y-3 rounded-xl border border-slate-200/80 bg-slate-50/50 p-4">
+              <p className="text-sm font-medium text-slate-700">HVAC units</p>
               <ul className="space-y-2">
                 {hvacUnits.map((unit) => (
                   <HvacUnitRow key={unit.id} unit={unit} filterSizes={filterSizes} />
@@ -573,8 +606,8 @@ export function SuiteRow({
               </ul>
               <AddHvacUnitForm suiteId={suite.id} filterSizes={filterSizes} />
             </div>
-          </td>
-        </tr>
+          </TableCell>
+        </TableRow>
       )}
     </>
   );

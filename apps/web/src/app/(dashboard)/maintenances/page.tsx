@@ -3,8 +3,9 @@ import { createClient } from "@/lib/supabase/server";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { PageHeader } from "@/components/layout/page-header";
 import { formatDate } from "@/lib/utils";
-import { Plus } from "lucide-react";
+import { ChevronRight, Plus } from "lucide-react";
 
 const statusVariant: Record<string, "secondary" | "warning" | "success" | "destructive"> = {
   scheduled: "secondary",
@@ -22,22 +23,23 @@ export default async function MaintenancesPage() {
 
   return (
     <div className="space-y-8">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Maintenances</h1>
-          <p className="text-zinc-500">Schedule and track building maintenance jobs</p>
-        </div>
-        <Link href="/maintenances/new">
-          <Button>
-            <Plus className="mr-2 h-4 w-4" /> Schedule Maintenance
-          </Button>
-        </Link>
-      </div>
+      <PageHeader
+        title="Maintenances"
+        description="Schedule and track building maintenance jobs"
+        actions={
+          <Link href="/maintenances/new">
+            <Button>
+              <Plus className="h-4 w-4" />
+              Schedule Maintenance
+            </Button>
+          </Link>
+        }
+      />
 
       <div className="space-y-3">
         {!maintenances?.length ? (
           <Card>
-            <CardContent className="py-8 text-center text-zinc-500">
+            <CardContent className="py-12 text-center text-slate-500">
               No maintenances scheduled yet.
             </CardContent>
           </Card>
@@ -50,21 +52,22 @@ export default async function MaintenancesPage() {
 
             return (
               <Link key={m.id} href={`/maintenances/${m.id}`}>
-                <Card className="transition-colors hover:bg-zinc-50">
+                <Card className="group transition-all hover:-translate-y-0.5 hover:border-sky-200/60 hover:shadow-md">
                   <CardContent className="flex items-center justify-between py-4">
                     <div>
-                      <p className="font-semibold">{m.building?.name}</p>
-                      <p className="text-sm text-zinc-500">
+                      <p className="font-semibold text-slate-900 group-hover:text-sky-700">{m.building?.name}</p>
+                      <p className="text-sm text-slate-500">
                         {formatDate(m.start_date)} – {formatDate(m.end_date)}
                       </p>
                     </div>
                     <div className="flex items-center gap-4">
-                      <p className="text-sm text-zinc-500">
+                      <p className="text-sm text-slate-500">
                         {done}/{total} suites
                       </p>
                       <Badge variant={statusVariant[m.status] ?? "secondary"}>
                         {m.status.replace("_", " ")}
                       </Badge>
+                      <ChevronRight className="h-5 w-5 text-slate-300 transition-colors group-hover:text-sky-500" />
                     </div>
                   </CardContent>
                 </Card>

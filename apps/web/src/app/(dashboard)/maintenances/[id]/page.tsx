@@ -139,15 +139,20 @@ export default async function MaintenanceDetailPage({
 
       <div className="grid gap-4 md:grid-cols-4">
         {[
-          { label: "Completed", value: completed, color: "text-green-600" },
-          { label: "Pending", value: pending, color: "text-zinc-600" },
-          { label: "No Access", value: noAccess, color: "text-yellow-600" },
-          { label: "Blocked", value: blocked, color: "text-red-600" },
-        ].map(({ label, value, color }) => (
-          <Card key={label}>
-            <CardContent className="pt-6">
-              <p className="text-sm text-zinc-500">{label}</p>
-              <p className={`text-2xl font-bold ${color}`}>{value}</p>
+          { label: "Completed", value: completed, color: "text-emerald-600", bg: "bg-emerald-50" },
+          { label: "Pending", value: pending, color: "text-slate-600", bg: "bg-slate-50" },
+          { label: "No Access", value: noAccess, color: "text-amber-600", bg: "bg-amber-50" },
+          { label: "Blocked", value: blocked, color: "text-red-600", bg: "bg-red-50" },
+        ].map(({ label, value, color, bg }) => (
+          <Card key={label} className="hover:shadow-md">
+            <CardContent className="flex items-center gap-4 pt-6">
+              <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${bg}`}>
+                <span className={`text-lg font-bold ${color}`}>{value}</span>
+              </div>
+              <div>
+                <p className="text-sm text-slate-500">{label}</p>
+                <p className={`text-2xl font-bold ${color}`}>{value}</p>
+              </div>
             </CardContent>
           </Card>
         ))}
@@ -205,11 +210,11 @@ export default async function MaintenanceDetailPage({
                 {visits
                   .filter((v) => (v.hvac_unit_visits ?? []).some((uv) => uv.deficiencies?.length))
                   .map((v) => (
-                    <div key={v.id} className="rounded-lg border border-zinc-100 p-2 text-sm">
+                    <div key={v.id} className="rounded-xl border border-slate-100 bg-slate-50/50 p-2 text-sm">
                       <p className="font-medium">Suite {v.suite?.suite_number}</p>
                       {(v.hvac_unit_visits ?? []).flatMap((uv) =>
                         (uv.deficiencies ?? []).map((d) => (
-                          <p key={d.id} className="text-zinc-600">
+                          <p key={d.id} className="text-slate-600">
                             {uv.hvac_unit?.name}: {d.description}
                           </p>
                         ))
@@ -227,9 +232,9 @@ export default async function MaintenanceDetailPage({
           <CardTitle className="text-base">Progress: {completed + blocked + noAccess} / {total} suites</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="h-3 w-full overflow-hidden rounded-full bg-zinc-100">
+          <div className="h-3 w-full overflow-hidden rounded-full bg-slate-100">
             <div
-              className="h-full rounded-full bg-green-500 transition-all"
+              className="h-full rounded-full bg-emerald-500 transition-all"
               style={{ width: `${total ? ((completed + blocked + noAccess) / total) * 100 : 0}%` }}
             />
           </div>

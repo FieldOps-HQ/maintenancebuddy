@@ -6,7 +6,8 @@ import { createClient } from "@/lib/supabase/client";
 import { parseCsvSuites } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Upload } from "lucide-react";
 
 export function CsvImport({ buildingId }: { buildingId: string }) {
   const router = useRouter();
@@ -56,21 +57,32 @@ export function CsvImport({ buildingId }: { buildingId: string }) {
   }
 
   return (
-    <div className="space-y-2 rounded-lg border border-dashed border-zinc-200 p-4">
-      <Label>Bulk Import (CSV)</Label>
-      <p className="text-xs text-zinc-500">
-        Format: suite_number, floor, filter_size (quantity column ignored, defaults to 1)
-      </p>
-      <Textarea
-        value={csv}
-        onChange={(e) => setCsv(e.target.value)}
-        placeholder={"201, 2, 16x25x1\n202, 2, 16x25x1"}
-        rows={4}
-      />
-      <Button onClick={handleImport} disabled={loading || !csv.trim()} size="sm" variant="outline">
-        {loading ? "Importing..." : "Import Suites"}
-      </Button>
-      {message && <p className="text-sm text-zinc-600">{message}</p>}
-    </div>
+    <Card className="border-dashed">
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Upload className="h-4 w-4 text-sky-600" />
+          Bulk Import (CSV)
+        </CardTitle>
+        <CardDescription>
+          Format: suite_number, floor, filter_size (quantity column ignored, defaults to 1)
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <Textarea
+          value={csv}
+          onChange={(e) => setCsv(e.target.value)}
+          placeholder={"201, 2, 16x25x1\n202, 2, 16x25x1"}
+          rows={4}
+        />
+        <Button onClick={handleImport} disabled={loading || !csv.trim()} size="sm" variant="outline">
+          {loading ? "Importing..." : "Import Suites"}
+        </Button>
+        {message && (
+          <p className={`text-sm ${message.startsWith("Imported") ? "text-emerald-700" : "text-slate-600"}`}>
+            {message}
+          </p>
+        )}
+      </CardContent>
+    </Card>
   );
 }
