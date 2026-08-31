@@ -183,7 +183,7 @@ export function SuiteVisitDetailDialog({
               {unitVisit.filter_size && (
                 <div className="text-sm">
                   <span className="text-zinc-500">Filter: </span>
-                  {unitVisit.filter_quantity ?? 1}x {unitVisit.filter_size}
+                  {unitVisit.filter_size}
                 </div>
               )}
 

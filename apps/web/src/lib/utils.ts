@@ -25,7 +25,7 @@ export function parseCsvSuites(csv: string) {
       suite_number,
       floor: floor || undefined,
       filter_size: filter_size || undefined,
-      filter_quantity: filter_quantity ? parseInt(filter_quantity, 10) : 1,
+      filter_quantity: 1,
       hvac_location_notes: hvac_location_notes || undefined,
     };
   }).filter((s) => s.suite_number);

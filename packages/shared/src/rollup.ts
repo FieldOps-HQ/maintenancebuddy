@@ -2,6 +2,17 @@ import type { SuiteVisitStatus } from "./types";
 
 const SUITE_LEVEL_STATUSES: SuiteVisitStatus[] = ["no_access", "blocked_unit", "skipped"];
 
+const UNIT_DONE_STATUSES: SuiteVisitStatus[] = [
+  "completed",
+  "blocked_unit",
+  "no_access",
+  "skipped",
+];
+
+export function isUnitVisitDone(status: SuiteVisitStatus): boolean {
+  return UNIT_DONE_STATUSES.includes(status);
+}
+
 export function getSuiteVisitRollupStatus(
   unitVisits: { status: SuiteVisitStatus }[],
   currentSuiteStatus?: SuiteVisitStatus
@@ -14,10 +25,12 @@ export function getSuiteVisitRollupStatus(
     return "pending";
   }
 
-  const completed = unitVisits.filter((v) => v.status === "completed").length;
-  const started = unitVisits.filter((v) => v.status === "in_progress" || v.status === "completed").length;
+  const done = unitVisits.filter((v) => isUnitVisitDone(v.status)).length;
+  const started = unitVisits.filter(
+    (v) => v.status === "in_progress" || isUnitVisitDone(v.status)
+  ).length;
 
-  if (completed === unitVisits.length) {
+  if (done === unitVisits.length) {
     return "completed";
   }
   if (started > 0) {
@@ -31,7 +44,7 @@ export function countCompletedUnitVisits(unitVisits: { status: SuiteVisitStatus 
   total: number;
 } {
   return {
-    completed: unitVisits.filter((v) => v.status === "completed").length,
+    completed: unitVisits.filter((v) => isUnitVisitDone(v.status)).length,
     total: unitVisits.length,
   };
 }

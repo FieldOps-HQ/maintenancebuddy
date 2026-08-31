@@ -62,7 +62,7 @@ export default function RootLayout() {
             hvac_location_notes?: string;
           };
         };
-        await supabase.from("suites").insert({ ...suite, building_id: buildingId });
+        await supabase.from("suites").insert({ ...suite, filter_quantity: 1, building_id: buildingId });
       },
       addHvacUnit: async (payload) => {
         const { suiteId, unit } = payload as {
@@ -74,7 +74,7 @@ export default function RootLayout() {
             filter_quantity?: number;
           };
         };
-        await supabase.from("hvac_units").insert({ ...unit, suite_id: suiteId });
+        await supabase.from("hvac_units").insert({ ...unit, filter_quantity: 1, suite_id: suiteId });
       },
     });
   }, []);

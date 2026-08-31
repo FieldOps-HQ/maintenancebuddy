@@ -43,7 +43,9 @@ function UnitFields({
       <div>
         <Label htmlFor={`${idPrefix}-filter_size`}>Filter size</Label>
         <Select id={`${idPrefix}-filter_size`} name="filter_size" defaultValue={unit?.filter_size ?? ""}>
-          <option value="">None</option>
+          <option value="" disabled>
+            Select filter size
+          </option>
           {filterSizes.map((size) => {
             const value = formatFilterSize(size);
             return (
@@ -53,16 +55,6 @@ function UnitFields({
             );
           })}
         </Select>
-      </div>
-      <div>
-        <Label htmlFor={`${idPrefix}-filter_quantity`}>Filter qty</Label>
-        <Input
-          id={`${idPrefix}-filter_quantity`}
-          name="filter_quantity"
-          type="number"
-          defaultValue={unit?.filter_quantity ?? 1}
-          min={0}
-        />
       </div>
       <div className="sm:col-span-2">
         <Label htmlFor={`${idPrefix}-location_notes`}>Location notes</Label>
@@ -98,7 +90,6 @@ export function HvacUnitRow({
       name: formData.get("name") as string,
       location_notes: (formData.get("location_notes") as string) || undefined,
       filter_size: (formData.get("filter_size") as string) || undefined,
-      filter_quantity: formData.get("filter_quantity") as string,
     });
 
     if (!parsed.success) {
@@ -108,7 +99,10 @@ export function HvacUnitRow({
     }
 
     const supabase = createClient();
-    const { error: updateError } = await supabase.from("hvac_units").update(parsed.data).eq("id", unit.id);
+    const { error: updateError } = await supabase
+      .from("hvac_units")
+      .update({ ...parsed.data, filter_quantity: 1 })
+      .eq("id", unit.id);
 
     if (updateError) {
       setError(
@@ -167,7 +161,7 @@ export function HvacUnitRow({
         <p className="font-medium">{unit.name}</p>
         {unit.filter_size && (
           <Badge variant="secondary" className="mt-1">
-            {unit.filter_quantity}x {unit.filter_size}
+            {unit.filter_size}
           </Badge>
         )}
         {unit.location_notes && <p className="mt-1 text-xs text-zinc-500">{unit.location_notes}</p>}
@@ -219,7 +213,6 @@ export function AddHvacUnitForm({
       name: formData.get("name") as string,
       location_notes: (formData.get("location_notes") as string) || undefined,
       filter_size: (formData.get("filter_size") as string) || undefined,
-      filter_quantity: formData.get("filter_quantity") as string,
     });
 
     if (!parsed.success) {
@@ -231,6 +224,7 @@ export function AddHvacUnitForm({
     const supabase = createClient();
     const { error: insertError } = await supabase.from("hvac_units").insert({
       ...parsed.data,
+      filter_quantity: 1,
       suite_id: suiteId,
     });
 

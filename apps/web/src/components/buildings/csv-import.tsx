@@ -27,13 +27,23 @@ export function CsvImport({ buildingId }: { buildingId: string }) {
       }
 
       const supabase = createClient();
-      const { error } = await supabase.from("suites").insert(
-        suites.map((s) => ({ ...s, building_id: buildingId }))
-      );
+      const { data: inserted, error } = await supabase
+        .from("suites")
+        .insert(suites.map((s) => ({ ...s, building_id: buildingId })))
+        .select("id, filter_size");
 
       if (error) {
         setMessage(error.message);
       } else {
+        for (const suite of inserted ?? []) {
+          if (suite.filter_size) {
+            await supabase
+              .from("hvac_units")
+              .update({ filter_size: suite.filter_size, filter_quantity: 1 })
+              .eq("suite_id", suite.id)
+              .eq("name", "Main unit");
+          }
+        }
         setMessage(`Imported ${suites.length} suites.`);
         setCsv("");
         router.refresh();
@@ -49,12 +59,12 @@ export function CsvImport({ buildingId }: { buildingId: string }) {
     <div className="space-y-2 rounded-lg border border-dashed border-zinc-200 p-4">
       <Label>Bulk Import (CSV)</Label>
       <p className="text-xs text-zinc-500">
-        Format: suite_number, floor, filter_size, filter_quantity
+        Format: suite_number, floor, filter_size (quantity column ignored, defaults to 1)
       </p>
       <Textarea
         value={csv}
         onChange={(e) => setCsv(e.target.value)}
-        placeholder={"201, 2, 16x25x1, 1\n202, 2, 16x25x1, 1"}
+        placeholder={"201, 2, 16x25x1\n202, 2, 16x25x1"}
         rows={4}
       />
       <Button onClick={handleImport} disabled={loading || !csv.trim()} size="sm" variant="outline">

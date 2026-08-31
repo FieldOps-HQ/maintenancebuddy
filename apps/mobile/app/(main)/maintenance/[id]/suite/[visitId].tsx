@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useState, useRef } from "react";
 import {
   View,
   Text,
@@ -34,8 +34,21 @@ interface UnitTile {
   name: string;
   status: SuiteVisitStatus;
   filter_size: string | null;
-  filter_quantity: number;
 }
+
+interface AddUnitForm {
+  name: string;
+  location_notes: string;
+  filter_size: string;
+}
+
+const emptyAddUnitForm: AddUnitForm = {
+  name: "",
+  location_notes: "",
+  filter_size: "",
+};
+
+const DUPLICATE_UNIT_MESSAGE = "A unit with this name already exists in the suite.";
 
 interface FilterSizeOption {
   id: string;
@@ -43,22 +56,6 @@ interface FilterSizeOption {
   width_in: number;
   thickness_in: number;
 }
-
-interface AddUnitForm {
-  name: string;
-  location_notes: string;
-  filter_size: string;
-  filter_quantity: string;
-}
-
-const emptyAddUnitForm: AddUnitForm = {
-  name: "",
-  location_notes: "",
-  filter_size: "",
-  filter_quantity: "1",
-};
-
-const DUPLICATE_UNIT_MESSAGE = "A unit with this name already exists in the suite.";
 
 export default function SuiteUnitsScreen() {
   const params = useLocalSearchParams<{
@@ -81,15 +78,16 @@ export default function SuiteUnitsScreen() {
   const [filterSizes, setFilterSizes] = useState<FilterSizeOption[]>([]);
   const [filterPickerOpen, setFilterPickerOpen] = useState(false);
   const [showQuickActions, setShowQuickActions] = useState(false);
+  const autoRedirected = useRef(false);
 
-  const loadData = useCallback(async () => {
-    if (!visitId) return;
+  const loadData = useCallback(async (): Promise<UnitTile[]> => {
+    if (!visitId) return [];
 
     const [{ data: suiteVisit }, { data: unitVisits }, { data: sizes }] = await Promise.all([
       supabase.from("suite_visits").select("status").eq("id", visitId).single(),
       supabase
         .from("hvac_unit_visits")
-        .select("id, status, hvac_unit:hvac_units(id, name, filter_size, filter_quantity)")
+        .select("id, status, hvac_unit:hvac_units(id, name, filter_size)")
         .eq("suite_visit_id", visitId),
       supabase
         .from("filter_sizes")
@@ -109,15 +107,43 @@ export default function SuiteUnitsScreen() {
         name: uv.hvac_unit?.name ?? "Unit",
         status: uv.status as SuiteVisitStatus,
         filter_size: uv.hvac_unit?.filter_size ?? null,
-        filter_quantity: uv.hvac_unit?.filter_quantity ?? 1,
       }))
     );
+
+    return (unitVisits ?? []).map((uv) => ({
+      id: uv.hvac_unit?.id ?? uv.id,
+      unitVisitId: uv.id,
+      unitId: uv.hvac_unit?.id ?? "",
+      name: uv.hvac_unit?.name ?? "Unit",
+      status: uv.status as SuiteVisitStatus,
+      filter_size: uv.hvac_unit?.filter_size ?? null,
+    }));
   }, [visitId]);
 
   useFocusEffect(
     useCallback(() => {
-      loadData();
-    }, [loadData])
+      let cancelled = false;
+
+      async function run() {
+        const loadedUnits = await loadData();
+        if (cancelled || autoRedirected.current || loadedUnits.length !== 1) return;
+
+        const unit = loadedUnits[0];
+        if (!unit.unitVisitId || !unit.unitId) return;
+
+        autoRedirected.current = true;
+        const edit =
+          unit.status !== "pending" && unit.status !== "in_progress";
+        const base = `/maintenance/${maintenanceId}/wizard/${visitId}?suiteNumber=${suiteNumber}&suiteId=${suiteId}&unitVisitId=${unit.unitVisitId}&unitId=${unit.unitId}&unitName=${encodeURIComponent(unit.name)}`;
+        router.replace(edit ? `${base}&edit=true` : base);
+      }
+
+      run();
+
+      return () => {
+        cancelled = true;
+      };
+    }, [loadData, maintenanceId, visitId, suiteNumber, suiteId])
   );
 
   const { completed, total } = countCompletedUnitVisits(units);
@@ -136,9 +162,7 @@ export default function SuiteUnitsScreen() {
       return;
     }
 
-    if (unit.status === "completed") {
-      router.push(`${base}&edit=true`);
-    }
+    router.push(`${base}&edit=true`);
   }
 
   async function handleQuickAction(status: "no_access" | "blocked_unit") {
@@ -168,7 +192,6 @@ export default function SuiteUnitsScreen() {
       name: addUnitForm.name.trim(),
       location_notes: addUnitForm.location_notes.trim() || undefined,
       filter_size: addUnitForm.filter_size.trim() || undefined,
-      filter_quantity: addUnitForm.filter_quantity,
     });
 
     if (!parsed.success) {
@@ -180,7 +203,7 @@ export default function SuiteUnitsScreen() {
 
     const { data: unit, error } = await supabase
       .from("hvac_units")
-      .insert({ ...parsed.data, suite_id: suiteId })
+      .insert({ ...parsed.data, filter_quantity: 1, suite_id: suiteId })
       .select("id, name")
       .single();
 
@@ -270,9 +293,7 @@ export default function SuiteUnitsScreen() {
                 <Text style={styles.unitStatus}>{SUITE_VISIT_STATUS_LABELS[item.status]}</Text>
               </View>
               {item.filter_size && (
-                <Text style={styles.unitFilter}>
-                  {item.filter_quantity}x {item.filter_size}
-                </Text>
+                <Text style={styles.unitFilter}>{item.filter_size}</Text>
               )}
             </TouchableOpacity>
           )}
@@ -369,15 +390,6 @@ export default function SuiteUnitsScreen() {
                     ))}
                   </View>
                 )}
-
-                <Text style={styles.fieldLabel}>Filter quantity</Text>
-                <TextInput
-                  style={styles.fieldInput}
-                  placeholder="1"
-                  value={addUnitForm.filter_quantity}
-                  onChangeText={(filter_quantity) => setAddUnitForm((f) => ({ ...f, filter_quantity }))}
-                  keyboardType="number-pad"
-                />
 
                 <TouchableOpacity
                   style={[styles.modalButton, styles.addSubmit, addingUnit && styles.buttonDisabled]}

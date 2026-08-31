@@ -21,6 +21,7 @@ import {
   technicianAddSuiteSchema,
   formatFilterSize,
   formatFilterSizeLabel,
+  isUnitVisitDone,
 } from "@maintenancebuddy/shared";
 import type { SuiteVisitStatus } from "@maintenancebuddy/shared";
 import { supabase } from "@/lib/supabase";
@@ -33,6 +34,10 @@ interface VisitTile {
   suite_id: string;
   unitsCompleted: number;
   unitsTotal: number;
+  unitVisitId?: string;
+  unitId?: string;
+  unitName?: string;
+  unitStatus?: SuiteVisitStatus;
 }
 
 interface FilterSizeOption {
@@ -46,16 +51,12 @@ interface AddSuiteForm {
   suite_number: string;
   floor: string;
   filter_size: string;
-  filter_quantity: string;
-  hvac_location_notes: string;
 }
 
 const emptyAddSuiteForm: AddSuiteForm = {
   suite_number: "",
   floor: "",
   filter_size: "",
-  filter_quantity: "1",
-  hvac_location_notes: "",
 };
 
 const DUPLICATE_SUITE_MESSAGE = "A suite with this number already exists in the building.";
@@ -85,7 +86,9 @@ export default function SuiteGridScreen() {
         .single(),
       supabase
         .from("suite_visits")
-        .select("id, status, suite_id, suite:suites(suite_number), hvac_unit_visits(status)")
+        .select(
+          "id, status, suite_id, suite:suites(suite_number), hvac_unit_visits(id, status, hvac_unit:hvac_units(id, name))"
+        )
         .eq("maintenance_id", maintenanceId),
       supabase
         .from("filter_sizes")
@@ -104,16 +107,31 @@ export default function SuiteGridScreen() {
         status: string;
         suite_id: string;
         suite: { suite_number: string } | null;
-        hvac_unit_visits: { status: string }[] | null;
+        hvac_unit_visits: {
+          id: string;
+          status: string;
+          hvac_unit: { id: string; name: string } | null;
+        }[] | null;
       }) => {
         const unitVisits = v.hvac_unit_visits ?? [];
+        const unitsTotal = unitVisits.length;
+        const singleUnit = unitsTotal === 1 ? unitVisits[0] : null;
+
         return {
           id: v.id,
           status: v.status as SuiteVisitStatus,
           suite_id: v.suite_id,
           suite_number: v.suite?.suite_number ?? "",
-          unitsCompleted: unitVisits.filter((uv) => uv.status === "completed").length,
-          unitsTotal: unitVisits.length,
+          unitsCompleted: unitVisits.filter((uv) =>
+            isUnitVisitDone(uv.status as SuiteVisitStatus)
+          ).length,
+          unitsTotal,
+          ...(singleUnit && {
+            unitVisitId: singleUnit.id,
+            unitId: singleUnit.hvac_unit?.id,
+            unitName: singleUnit.hvac_unit?.name ?? "Unit",
+            unitStatus: singleUnit.status as SuiteVisitStatus,
+          }),
         };
       })
     );
@@ -159,15 +177,30 @@ export default function SuiteGridScreen() {
     return `/maintenance/${maintenanceId}/suite/${visit.id}?suiteNumber=${visit.suite_number}&suiteId=${visit.suite_id}`;
   }
 
+  function wizardRoute(visit: VisitTile) {
+    const edit =
+      visit.unitStatus !== undefined &&
+      visit.unitStatus !== "pending" &&
+      visit.unitStatus !== "in_progress";
+    const base = `/maintenance/${maintenanceId}/wizard/${visit.id}?suiteNumber=${visit.suite_number}&suiteId=${visit.suite_id}&unitVisitId=${visit.unitVisitId}&unitId=${visit.unitId}&unitName=${encodeURIComponent(visit.unitName ?? "Unit")}`;
+    return edit ? `${base}&edit=true` : base;
+  }
+
   function promptStartVisit(visit: VisitTile) {
     Alert.alert(
       "Suite added",
-      `Suite ${visit.suite_number} was added. Open the unit list now?`,
+      `Suite ${visit.suite_number} was added. Start maintenance now?`,
       [
         { text: "Later", style: "cancel" },
         {
-          text: "Open suite",
-          onPress: () => router.push(suiteRoute(visit)),
+          text: visit.unitsTotal === 1 ? "Start unit" : "Open suite",
+          onPress: () => {
+            if (visit.unitsTotal === 1 && visit.unitVisitId && visit.unitId) {
+              router.push(wizardRoute(visit));
+            } else {
+              router.push(suiteRoute(visit));
+            }
+          },
         },
       ]
     );
@@ -182,9 +215,7 @@ export default function SuiteGridScreen() {
     const parsed = technicianAddSuiteSchema.safeParse({
       suite_number: addSuiteForm.suite_number.trim(),
       floor: addSuiteForm.floor.trim() || undefined,
-      filter_size: addSuiteForm.filter_size.trim() || undefined,
-      filter_quantity: addSuiteForm.filter_quantity,
-      hvac_location_notes: addSuiteForm.hvac_location_notes.trim() || undefined,
+      filter_size: addSuiteForm.filter_size.trim(),
     });
 
     if (!parsed.success) {
@@ -196,7 +227,7 @@ export default function SuiteGridScreen() {
 
     const { data: suite, error } = await supabase
       .from("suites")
-      .insert({ ...parsed.data, building_id: buildingId })
+      .insert({ ...parsed.data, filter_quantity: 1, building_id: buildingId })
       .select("id, suite_number")
       .single();
 
@@ -220,14 +251,33 @@ export default function SuiteGridScreen() {
       return;
     }
 
+    const { data: mainUnit } = await supabase
+      .from("hvac_units")
+      .select("id")
+      .eq("suite_id", suite.id)
+      .eq("name", "Main unit")
+      .maybeSingle();
+
+    if (mainUnit) {
+      await supabase
+        .from("hvac_units")
+        .update({ filter_size: parsed.data.filter_size, filter_quantity: 1 })
+        .eq("id", mainUnit.id);
+    }
+
     await loadData();
 
     const { data: visitData } = await supabase
       .from("suite_visits")
-      .select("id, status, suite_id, suite:suites(suite_number), hvac_unit_visits(status)")
+      .select(
+        "id, status, suite_id, suite:suites(suite_number), hvac_unit_visits(id, status, hvac_unit:hvac_units(id, name))"
+      )
       .eq("maintenance_id", maintenanceId)
       .eq("suite_id", suite.id)
       .single();
+
+    const unitVisits = visitData?.hvac_unit_visits ?? [];
+    const singleUnit = unitVisits.length === 1 ? unitVisits[0] : null;
 
     const visit: VisitTile | null = visitData
       ? {
@@ -235,8 +285,16 @@ export default function SuiteGridScreen() {
           status: visitData.status as SuiteVisitStatus,
           suite_id: visitData.suite_id,
           suite_number: visitData.suite?.suite_number ?? suite.suite_number,
-          unitsCompleted: (visitData.hvac_unit_visits ?? []).filter((uv) => uv.status === "completed").length,
-          unitsTotal: visitData.hvac_unit_visits?.length ?? 0,
+          unitsCompleted: unitVisits.filter((uv) =>
+            isUnitVisitDone(uv.status as SuiteVisitStatus)
+          ).length,
+          unitsTotal: unitVisits.length,
+          ...(singleUnit && {
+            unitVisitId: singleUnit.id,
+            unitId: singleUnit.hvac_unit?.id,
+            unitName: singleUnit.hvac_unit?.name ?? "Unit",
+            unitStatus: singleUnit.status as SuiteVisitStatus,
+          }),
         }
       : null;
 
@@ -276,6 +334,10 @@ export default function SuiteGridScreen() {
   }
 
   function handleSuitePress(visit: VisitTile) {
+    if (visit.unitsTotal === 1 && visit.unitVisitId && visit.unitId) {
+      router.push(wizardRoute(visit));
+      return;
+    }
     router.push(suiteRoute(visit));
   }
 
@@ -411,7 +473,7 @@ export default function SuiteGridScreen() {
                   onChangeText={(floor) => setAddSuiteForm((f) => ({ ...f, floor }))}
                 />
 
-                <Text style={styles.fieldLabel}>Filter size</Text>
+                <Text style={styles.fieldLabel}>Filter size *</Text>
                 <TouchableOpacity
                   style={[styles.fieldInput, styles.filterSelect, filterSizes.length === 0 && styles.fieldDisabled]}
                   onPress={() => filterSizes.length > 0 && setFilterPickerOpen((open) => !open)}
@@ -446,26 +508,6 @@ export default function SuiteGridScreen() {
                     ))}
                   </View>
                 )}
-
-                <Text style={styles.fieldLabel}>Filter quantity</Text>
-                <TextInput
-                  style={styles.fieldInput}
-                  placeholder="1"
-                  value={addSuiteForm.filter_quantity}
-                  onChangeText={(filter_quantity) => setAddSuiteForm((f) => ({ ...f, filter_quantity }))}
-                  keyboardType="number-pad"
-                />
-
-                <Text style={styles.fieldLabel}>HVAC location notes</Text>
-                <TextInput
-                  style={[styles.fieldInput, styles.fieldTextArea]}
-                  placeholder="Optional notes..."
-                  value={addSuiteForm.hvac_location_notes}
-                  onChangeText={(hvac_location_notes) =>
-                    setAddSuiteForm((f) => ({ ...f, hvac_location_notes }))
-                  }
-                  multiline
-                />
 
                 <TouchableOpacity
                   style={[styles.modalButton, styles.addSuiteSubmit, addingSuite && styles.buttonDisabled]}
