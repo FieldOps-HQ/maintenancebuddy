@@ -1,10 +1,12 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { ACTIVE_MAINTENANCE_STATUSES } from "@maintenancebuddy/shared";
+import { collectVisitIssues } from "@/lib/visit-issues";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MaintenanceProgress } from "@/components/maintenances/maintenance-progress";
 import { DownloadReportButton } from "@/components/maintenances/download-report-button";
 import { MaintenanceHeader } from "@/components/maintenances/maintenance-actions";
+import { VisitIssuesCard } from "@/components/maintenances/visit-issues-card";
 import type { SuiteVisitDetailData } from "@/components/maintenances/suite-visit-detail-dialog";
 
 const UNIT_VISIT_SELECT = `
@@ -105,9 +107,7 @@ export default async function MaintenanceDetailPage({
   const done = visits.filter((v) =>
     ["completed", "blocked_unit", "no_access"].includes(v.status)
   ).length;
-  const deficiencies = visits.flatMap((v) =>
-    (v.hvac_unit_visits ?? []).flatMap((uv) => uv.deficiencies ?? [])
-  );
+  const visitIssues = collectVisitIssues(visits);
 
   return (
     <div className="space-y-6">
@@ -141,7 +141,7 @@ export default async function MaintenanceDetailPage({
         initialVisits={visits.map(mapInitialVisit)}
       />
 
-      {(maintenance.assignments?.length ?? 0) > 0 || deficiencies.length > 0 ? (
+      {(maintenance.assignments?.length ?? 0) > 0 || visitIssues.length > 0 ? (
         <div className="grid gap-6 lg:grid-cols-2">
           {(maintenance.assignments?.length ?? 0) > 0 && (
             <Card>
@@ -159,29 +159,7 @@ export default async function MaintenanceDetailPage({
             </Card>
           )}
 
-          {deficiencies.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Deficiencies ({deficiencies.length})</CardTitle>
-              </CardHeader>
-              <CardContent className="max-h-64 space-y-2 overflow-auto">
-                {visits
-                  .filter((v) => (v.hvac_unit_visits ?? []).some((uv) => uv.deficiencies?.length))
-                  .map((v) => (
-                    <div key={v.id} className="rounded-xl border border-slate-100 bg-slate-50/50 p-2 text-sm">
-                      <p className="font-medium">Suite {v.suite?.suite_number}</p>
-                      {(v.hvac_unit_visits ?? []).flatMap((uv) =>
-                        (uv.deficiencies ?? []).map((d) => (
-                          <p key={d.id} className="text-slate-600">
-                            {uv.hvac_unit?.name}: {d.description}
-                          </p>
-                        ))
-                      )}
-                    </div>
-                  ))}
-              </CardContent>
-            </Card>
-          )}
+          {visitIssues.length > 0 && <VisitIssuesCard issues={visitIssues} />}
         </div>
       ) : null}
     </div>

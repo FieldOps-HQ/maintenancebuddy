@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { MOBILE_STATUS_COLORS, SUITE_VISIT_STATUS_LABELS, countCompletedUnitVisits } from "@maintenancebuddy/shared";
 import type { SuiteVisitStatus } from "@maintenancebuddy/shared";
+import { getVisitReasonPreview } from "@/lib/visit-issues";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
@@ -204,6 +205,7 @@ export function MaintenanceProgress({
             {filteredVisits.map((visit) => {
                 const { completed, total } = countCompletedUnitVisits(visit.unit_visits);
                 const progressLabel = total > 1 ? `${completed}/${total}` : visit.suite_number;
+                const reasonPreview = getVisitReasonPreview(visit);
 
                 return (
                   <button
@@ -217,7 +219,7 @@ export function MaintenanceProgress({
                     }}
                     title={`${visit.suite_number}: ${SUITE_VISIT_STATUS_LABELS[visit.status]}${
                       total > 1 ? ` (${completed}/${total} units)` : ""
-                    }`}
+                    }${reasonPreview ? `\nReason: ${reasonPreview}` : ""}`}
                   >
                     <span>{visit.suite_number}</span>
                     {total > 1 && <span className="text-[10px] font-normal opacity-90">{progressLabel}</span>}

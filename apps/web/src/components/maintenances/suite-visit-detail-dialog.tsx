@@ -168,7 +168,9 @@ export function SuiteVisitDetailDialog({
 
           {visit.notes && (
             <div>
-              <p className="mb-1 text-sm font-medium text-zinc-500">Notes</p>
+              <p className="mb-1 text-sm font-medium text-zinc-500">
+                {visit.status === "blocked_unit" || visit.status === "no_access" ? "Reason" : "Notes"}
+              </p>
               <p className="text-sm">{visit.notes}</p>
             </div>
           )}
@@ -184,6 +186,17 @@ export function SuiteVisitDetailDialog({
                 <div className="text-sm">
                   <span className="text-zinc-500">Filter: </span>
                   {unitVisit.filter_size}
+                </div>
+              )}
+
+              {unitVisit.notes && (
+                <div>
+                  <p className="mb-1 text-sm font-medium text-zinc-500">
+                    {unitVisit.status === "blocked_unit" || unitVisit.status === "no_access"
+                      ? "Reason"
+                      : "Notes"}
+                  </p>
+                  <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-950">{unitVisit.notes}</p>
                 </div>
               )}
 
