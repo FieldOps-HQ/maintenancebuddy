@@ -23,12 +23,14 @@ import {
   formatFilterSize,
   formatFilterSizeLabel,
   formatBuildingAddress,
+  getSuiteVisitRollupStatus,
   isUnitVisitDone,
 } from "@maintenancebuddy/shared";
 import type { SuiteVisitStatus } from "@maintenancebuddy/shared";
 import { supabase } from "@/lib/supabase";
 import { addToOutbox } from "@/lib/outbox";
 import { addFieldUnit } from "@/lib/add-field-unit";
+import { applyAllUnitsAccessStatus } from "@/lib/suite-visit-status";
 import { colors, radius } from "@/lib/theme";
 import { ScreenHeader } from "@/components/screen-header";
 
@@ -165,7 +167,9 @@ export default function SuiteGridScreen() {
 
         return {
           id: v.id,
-          status: v.status as SuiteVisitStatus,
+          status: getSuiteVisitRollupStatus(
+            unitVisits.map((uv) => ({ status: uv.status as SuiteVisitStatus }))
+          ),
           suite_id: v.suite_id,
           suite_number: v.suite?.suite_number ?? "",
           unitsCompleted: unitVisits.filter((uv) =>
@@ -372,19 +376,15 @@ export default function SuiteGridScreen() {
   async function handleQuickAction(status: "no_access" | "blocked_unit", note: string) {
     if (!selectedVisit) return;
 
-    const updates = {
-      status,
-      notes: note,
-      visited_at: new Date().toISOString(),
-    };
+    const visitId = selectedVisit.id;
 
-    const { error } = await supabase
-      .from("suite_visits")
-      .update(updates)
-      .eq("id", selectedVisit.id);
-
-    if (error) {
-      await addToOutbox({ type: "update_suite_visit", payload: { visitId: selectedVisit.id, updates } });
+    try {
+      await applyAllUnitsAccessStatus(supabase, visitId, status, note);
+    } catch {
+      await addToOutbox({
+        type: "update_suite_unit_visits",
+        payload: { suiteVisitId: visitId, status, note },
+      });
       setPendingSync((p) => p + 1);
     }
 

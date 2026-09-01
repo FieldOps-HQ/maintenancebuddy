@@ -7,7 +7,7 @@ export interface OutboxItem {
   id: string;
   type:
     | "update_unit_visit"
-    | "update_suite_visit"
+    | "update_suite_unit_visits"
     | "upload_photo"
     | "create_deficiency"
     | "add_suite"
@@ -39,7 +39,7 @@ export async function removeFromOutbox(id: string) {
 export async function processOutbox(
   handlers: {
     updateUnitVisit: (payload: Record<string, unknown>) => Promise<void>;
-    updateSuiteVisit: (payload: Record<string, unknown>) => Promise<void>;
+    updateSuiteUnitVisits: (payload: Record<string, unknown>) => Promise<void>;
     uploadPhoto: (payload: Record<string, unknown>) => Promise<void>;
     createDeficiency: (payload: Record<string, unknown>) => Promise<void>;
     addSuite: (payload: Record<string, unknown>) => Promise<void>;
@@ -50,7 +50,7 @@ export async function processOutbox(
   for (const item of outbox) {
     try {
       if (item.type === "update_unit_visit") await handlers.updateUnitVisit(item.payload);
-      if (item.type === "update_suite_visit") await handlers.updateSuiteVisit(item.payload);
+      if (item.type === "update_suite_unit_visits") await handlers.updateSuiteUnitVisits(item.payload);
       if (item.type === "upload_photo") await handlers.uploadPhoto(item.payload);
       if (item.type === "create_deficiency") await handlers.createDeficiency(item.payload);
       if (item.type === "add_suite") await handlers.addSuite(item.payload);

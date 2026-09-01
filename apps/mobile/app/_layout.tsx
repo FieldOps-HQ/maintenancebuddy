@@ -5,6 +5,7 @@ import { useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { processOutbox } from "@/lib/outbox";
 import { addFieldUnit } from "@/lib/add-field-unit";
+import { buildUnitAccessStatusUpdates } from "@/lib/suite-visit-status";
 import { base64ToArrayBuffer } from "@/lib/upload-photo";
 
 const queryClient = new QueryClient();
@@ -19,9 +20,16 @@ export default function RootLayout() {
         };
         await supabase.from("hvac_unit_visits").update(updates as never).eq("id", unitVisitId);
       },
-      updateSuiteVisit: async (payload) => {
-        const { visitId, updates } = payload as { visitId: string; updates: Record<string, unknown> };
-        await supabase.from("suite_visits").update(updates as never).eq("id", visitId);
+      updateSuiteUnitVisits: async (payload) => {
+        const { suiteVisitId, status, note } = payload as {
+          suiteVisitId: string;
+          status: "no_access" | "blocked_unit";
+          note: string;
+        };
+        await supabase
+          .from("hvac_unit_visits")
+          .update(buildUnitAccessStatusUpdates(status, note) as never)
+          .eq("suite_visit_id", suiteVisitId);
       },
       uploadPhoto: async (payload) => {
         const { unitVisitId, maintenanceId, suiteId, unitId, base64 } = payload as {

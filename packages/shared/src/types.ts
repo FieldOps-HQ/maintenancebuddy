@@ -103,7 +103,6 @@ export interface SuiteVisit {
   suite_id: string;
   status: SuiteVisitStatus;
   visited_at: string | null;
-  notes: string | null;
   created_at: string;
   updated_at: string;
 }

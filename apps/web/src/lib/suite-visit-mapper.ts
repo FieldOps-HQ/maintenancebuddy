@@ -1,4 +1,4 @@
-import type { SuiteVisitStatus } from "@maintenancebuddy/shared";
+import { getSuiteVisitRollupStatus, type SuiteVisitStatus } from "@maintenancebuddy/shared";
 import type {
   SuiteVisitDetailData,
   UnitVisitDetailData,
@@ -19,18 +19,14 @@ export const UNIT_VISIT_SELECT = `
 
 export const SUITE_VISIT_SELECT = `
   id,
-  status,
   visited_at,
-  notes,
   suite:suites(suite_number, floor),
   hvac_unit_visits(${UNIT_VISIT_SELECT})
 `;
 
 export function mapSuiteVisitRow(v: {
   id: string;
-  status: string;
   visited_at: string | null;
-  notes: string | null;
   suite: {
     suite_number: string;
     floor: string | null;
@@ -69,34 +65,12 @@ export function mapSuiteVisitRow(v: {
 
   return {
     id: v.id,
-    status: v.status as SuiteVisitStatus,
+    status: getSuiteVisitRollupStatus(unitVisits),
     suite_number: v.suite?.suite_number ?? "",
     floor: v.suite?.floor ?? null,
     visited_at: v.visited_at,
-    notes: v.notes,
     unit_visits: unitVisits,
   };
-}
-
-export function buildSuiteVisitStatusUpdates(status: SuiteVisitStatus, notes: string | null) {
-  const updates: {
-    status: SuiteVisitStatus;
-    notes: string | null;
-    visited_at: string | null;
-  } = { status, notes: null, visited_at: null };
-
-  if (status === "blocked_unit" || status === "no_access") {
-    updates.notes = notes;
-    updates.visited_at = new Date().toISOString();
-  } else if (status === "pending") {
-    updates.notes = null;
-    updates.visited_at = null;
-  } else {
-    updates.notes = null;
-    updates.visited_at = new Date().toISOString();
-  }
-
-  return updates;
 }
 
 export function buildUnitVisitStatusUpdates(

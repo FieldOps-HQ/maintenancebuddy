@@ -8,6 +8,7 @@ import { DownloadReportButton } from "@/components/maintenances/download-report-
 import { MaintenanceHeader } from "@/components/maintenances/maintenance-actions";
 import { VisitIssuesCard } from "@/components/maintenances/visit-issues-card";
 import type { SuiteVisitDetailData } from "@/components/maintenances/suite-visit-detail-dialog";
+import { mapSuiteVisitRow } from "@/lib/suite-visit-mapper";
 
 const UNIT_VISIT_SELECT = `
   id,
@@ -21,49 +22,6 @@ const UNIT_VISIT_SELECT = `
   deficiencies:deficiencies!deficiencies_hvac_unit_visit_id_fkey(id, category, description),
   visit_photos:visit_photos!visit_photos_hvac_unit_visit_id_fkey(id, storage_path)
 `;
-
-function mapInitialVisit(v: {
-  id: string;
-  status: string;
-  visited_at: string | null;
-  notes: string | null;
-  suite: { suite_number: string; floor: string | null } | null;
-  hvac_unit_visits?: {
-    id: string;
-    status: string;
-    cleaned: boolean | null;
-    filter_changed: boolean | null;
-    operating_normally: boolean | null;
-    visited_at: string | null;
-    notes: string | null;
-    hvac_unit: { name: string; filter_size: string | null; filter_quantity: number | null } | null;
-    deficiencies?: { id: string; category: string; description: string }[];
-    visit_photos?: { id: string; storage_path: string }[];
-  }[];
-}): SuiteVisitDetailData {
-  return {
-    id: v.id,
-    status: v.status as SuiteVisitDetailData["status"],
-    suite_number: v.suite?.suite_number ?? "",
-    floor: v.suite?.floor ?? null,
-    visited_at: v.visited_at,
-    notes: v.notes,
-    unit_visits: (v.hvac_unit_visits ?? []).map((uv) => ({
-      id: uv.id,
-      status: uv.status as SuiteVisitDetailData["status"],
-      cleaned: uv.cleaned,
-      filter_changed: uv.filter_changed,
-      operating_normally: uv.operating_normally,
-      visited_at: uv.visited_at,
-      notes: uv.notes,
-      unit_name: uv.hvac_unit?.name ?? "Unit",
-      filter_size: uv.hvac_unit?.filter_size ?? null,
-      filter_quantity: uv.hvac_unit?.filter_quantity ?? null,
-      deficiencies: uv.deficiencies ?? [],
-      photos: uv.visit_photos ?? [],
-    })),
-  };
-}
 
 export default async function MaintenanceDetailPage({
   params,
@@ -138,7 +96,7 @@ export default async function MaintenanceDetailPage({
 
       <MaintenanceProgress
         maintenanceId={id}
-        initialVisits={visits.map(mapInitialVisit)}
+        initialVisits={visits.map(mapSuiteVisitRow)}
       />
 
       {(maintenance.assignments?.length ?? 0) > 0 || visitIssues.length > 0 ? (

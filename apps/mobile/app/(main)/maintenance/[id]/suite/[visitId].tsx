@@ -22,10 +22,12 @@ import {
   formatFilterSize,
   formatFilterSizeLabel,
   countCompletedUnitVisits,
+  getSuiteVisitRollupStatus,
 } from "@maintenancebuddy/shared";
 import type { SuiteVisitStatus } from "@maintenancebuddy/shared";
 import { supabase } from "@/lib/supabase";
 import { addToOutbox } from "@/lib/outbox";
+import { applyAllUnitsAccessStatus } from "@/lib/suite-visit-status";
 import { colors, radius } from "@/lib/theme";
 import { ScreenHeader } from "@/components/screen-header";
 
@@ -50,6 +52,11 @@ const emptyAddUnitForm: AddUnitForm = {
 
 const DUPLICATE_UNIT_MESSAGE = "A unit with this name already exists in the suite.";
 
+const STATUS_REASON_PROMPTS: Record<"blocked_unit" | "no_access", string> = {
+  blocked_unit: "Why is this suite blocked?",
+  no_access: "Why was there no access to this suite?",
+};
+
 interface FilterSizeOption {
   id: string;
   length_in: number;
@@ -71,20 +78,20 @@ export default function SuiteUnitsScreen() {
   const suiteId = params.suiteId;
 
   const [units, setUnits] = useState<UnitTile[]>([]);
-  const [suiteStatus, setSuiteStatus] = useState<SuiteVisitStatus>("pending");
   const [showAddUnit, setShowAddUnit] = useState(false);
   const [addUnitForm, setAddUnitForm] = useState<AddUnitForm>(emptyAddUnitForm);
   const [addingUnit, setAddingUnit] = useState(false);
   const [filterSizes, setFilterSizes] = useState<FilterSizeOption[]>([]);
   const [filterPickerOpen, setFilterPickerOpen] = useState(false);
   const [showQuickActions, setShowQuickActions] = useState(false);
+  const [statusReasonPrompt, setStatusReasonPrompt] = useState<"blocked_unit" | "no_access" | null>(null);
+  const [statusReasonDraft, setStatusReasonDraft] = useState("");
   const autoRedirected = useRef(false);
 
   const loadData = useCallback(async (): Promise<UnitTile[]> => {
     if (!visitId) return [];
 
-    const [{ data: suiteVisit }, { data: unitVisits }, { data: sizes }] = await Promise.all([
-      supabase.from("suite_visits").select("status").eq("id", visitId).single(),
+    const [{ data: unitVisits }, { data: sizes }] = await Promise.all([
       supabase
         .from("hvac_unit_visits")
         .select("id, status, hvac_unit:hvac_units(id, name, filter_size)")
@@ -97,7 +104,6 @@ export default function SuiteUnitsScreen() {
         .order("thickness_in"),
     ]);
 
-    setSuiteStatus((suiteVisit?.status as SuiteVisitStatus) ?? "pending");
     setFilterSizes(sizes ?? []);
     setUnits(
       (unitVisits ?? []).map((uv) => ({
@@ -147,6 +153,10 @@ export default function SuiteUnitsScreen() {
   );
 
   const { completed, total } = countCompletedUnitVisits(units);
+  const suiteStatus = getSuiteVisitRollupStatus(units.map((unit) => ({ status: unit.status })));
+  const canServiceUnits = units.some(
+    (unit) => unit.status === "pending" || unit.status === "in_progress"
+  );
   const selectedFilterLabel = filterSizes.find((s) => formatFilterSize(s) === addUnitForm.filter_size);
 
   function selectFilterSize(size: FilterSizeOption) {
@@ -165,21 +175,39 @@ export default function SuiteUnitsScreen() {
     router.push(`${base}&edit=true`);
   }
 
-  async function handleQuickAction(status: "no_access" | "blocked_unit") {
-    const updates = {
-      status,
-      notes: null,
-      visited_at: new Date().toISOString(),
-    };
+  async function handleQuickAction(status: "no_access" | "blocked_unit", note: string) {
+    if (!visitId) return;
 
-    const { error } = await supabase.from("suite_visits").update(updates).eq("id", visitId!);
-
-    if (error) {
-      await addToOutbox({ type: "update_suite_visit", payload: { visitId, updates } });
+    try {
+      await applyAllUnitsAccessStatus(supabase, visitId, status, note);
+    } catch {
+      await addToOutbox({
+        type: "update_suite_unit_visits",
+        payload: { suiteVisitId: visitId, status, note },
+      });
     }
 
     setShowQuickActions(false);
+    setStatusReasonPrompt(null);
+    setStatusReasonDraft("");
     router.back();
+  }
+
+  function startStatusReasonPrompt(status: "no_access" | "blocked_unit") {
+    setStatusReasonPrompt(status);
+    setStatusReasonDraft("");
+  }
+
+  function handleStatusReasonContinue() {
+    if (!statusReasonPrompt) return;
+
+    const reason = statusReasonDraft.trim();
+    if (!reason) {
+      Alert.alert("Reason required", "Please explain why before continuing.");
+      return;
+    }
+
+    handleQuickAction(statusReasonPrompt, reason);
   }
 
   async function handleAddUnit() {
@@ -247,8 +275,6 @@ export default function SuiteUnitsScreen() {
     }
   }
 
-  const canServiceUnits = !["no_access", "blocked_unit", "skipped"].includes(suiteStatus);
-
   return (
     <View style={styles.container}>
       <ScreenHeader
@@ -300,26 +326,68 @@ export default function SuiteUnitsScreen() {
       )}
 
       <Modal visible={showQuickActions} transparent animationType="fade">
-        <Pressable style={styles.modalOverlay} onPress={() => setShowQuickActions(false)}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Suite {suiteNumber}</Text>
-            <Text style={styles.modalSubtitle}>Mark entire suite</Text>
-            <TouchableOpacity
-              style={[styles.modalButton, { backgroundColor: colors.warning }]}
-              onPress={() => handleQuickAction("no_access")}
-            >
-              <Text style={styles.modalButtonText}>No Access</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.modalButton, { backgroundColor: colors.danger }]}
-              onPress={() => handleQuickAction("blocked_unit")}
-            >
-              <Text style={styles.modalButtonText}>Blocked Unit</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.modalCancel} onPress={() => setShowQuickActions(false)}>
-              <Text style={styles.modalCancelText}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => {
+            setShowQuickActions(false);
+            setStatusReasonPrompt(null);
+            setStatusReasonDraft("");
+          }}
+        >
+          <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
+            {statusReasonPrompt ? (
+              <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined}>
+                <Text style={styles.modalTitle}>
+                  {statusReasonPrompt === "blocked_unit" ? "Mark blocked" : "Mark no access"}
+                </Text>
+                <Text style={styles.modalSubtitle}>Suite {suiteNumber}</Text>
+                <Text style={styles.reasonPrompt}>{STATUS_REASON_PROMPTS[statusReasonPrompt]}</Text>
+                <TextInput
+                  style={styles.noteInput}
+                  placeholder="Enter reason (required)..."
+                  value={statusReasonDraft}
+                  onChangeText={setStatusReasonDraft}
+                  multiline
+                  autoFocus
+                />
+                <TouchableOpacity
+                  style={[styles.modalButton, { backgroundColor: colors.primary }]}
+                  onPress={handleStatusReasonContinue}
+                >
+                  <Text style={styles.modalButtonText}>Continue</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.modalCancel}
+                  onPress={() => {
+                    setStatusReasonPrompt(null);
+                    setStatusReasonDraft("");
+                  }}
+                >
+                  <Text style={styles.modalCancelText}>Back</Text>
+                </TouchableOpacity>
+              </KeyboardAvoidingView>
+            ) : (
+              <>
+                <Text style={styles.modalTitle}>Suite {suiteNumber}</Text>
+                <Text style={styles.modalSubtitle}>Mark entire suite</Text>
+                <TouchableOpacity
+                  style={[styles.modalButton, { backgroundColor: colors.warning }]}
+                  onPress={() => startStatusReasonPrompt("no_access")}
+                >
+                  <Text style={styles.modalButtonText}>No Access</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalButton, { backgroundColor: colors.danger }]}
+                  onPress={() => startStatusReasonPrompt("blocked_unit")}
+                >
+                  <Text style={styles.modalButtonText}>Blocked Unit</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.modalCancel} onPress={() => setShowQuickActions(false)}>
+                  <Text style={styles.modalCancelText}>Cancel</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </Pressable>
         </Pressable>
       </Modal>
 
@@ -450,6 +518,18 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginBottom: 20,
     marginTop: 4,
+  },
+  reasonPrompt: { fontSize: 16, color: colors.text, marginBottom: 12, textAlign: "center" },
+  noteInput: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.sm,
+    padding: 12,
+    fontSize: 16,
+    minHeight: 80,
+    textAlignVertical: "top",
+    marginBottom: 16,
+    backgroundColor: colors.surface,
   },
   fieldLabel: { fontSize: 13, fontWeight: "600", color: colors.slate700, marginBottom: 6 },
   fieldInput: {

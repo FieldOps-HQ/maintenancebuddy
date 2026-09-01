@@ -13,7 +13,6 @@ import { Button } from "@/components/ui/button";
 import { formatDate } from "@/lib/utils";
 import {
   SUITE_VISIT_SELECT,
-  buildSuiteVisitStatusUpdates,
   buildUnitVisitStatusUpdates,
   mapSuiteVisitRow,
 } from "@/lib/suite-visit-mapper";
@@ -45,7 +44,6 @@ export interface SuiteVisitDetailData {
   suite_number: string;
   floor: string | null;
   visited_at: string | null;
-  notes: string | null;
   unit_visits: UnitVisitDetailData[];
 }
 
@@ -166,8 +164,6 @@ export function SuiteVisitDetailDialog({
 
   if (!visitData) return null;
 
-  const total = visitData.unit_visits.length;
-
   async function refreshVisit() {
     setRefreshing(true);
     try {
@@ -179,33 +175,23 @@ export function SuiteVisitDetailDialog({
     }
   }
 
-  async function handleSuiteStatusSave(status: SuiteVisitStatus, notes: string | null) {
+  async function handleUnitStatusSave(
+    unitVisit: UnitVisitDetailData,
+    status: SuiteVisitStatus,
+    notes: string | null
+  ) {
     const supabase = createClient();
-    const leavingCompleted = isLeavingCompletedStatus(visitData!.status, status);
+    const leavingCompleted = isLeavingCompletedStatus(unitVisit.status, status);
 
     if (leavingCompleted) {
-      await resetSuiteVisitCompletionData(supabase, visitData!.unit_visits);
+      await resetSuiteVisitCompletionData(supabase, [unitVisit]);
     }
 
-    const suiteUpdates = buildSuiteVisitStatusUpdates(status, notes);
-    const unitUpdates = buildUnitVisitStatusUpdates(status, notes, leavingCompleted);
+    const updates = buildUnitVisitStatusUpdates(status, notes, leavingCompleted);
+    const { error } = await supabase.from("hvac_unit_visits").update(updates).eq("id", unitVisit.id);
 
-    const { error: suiteError } = await supabase
-      .from("suite_visits")
-      .update(suiteUpdates)
-      .eq("id", visitData!.id);
-
-    if (suiteError) {
-      throw new Error(suiteError.message);
-    }
-
-    const { error: unitsError } = await supabase
-      .from("hvac_unit_visits")
-      .update(unitUpdates)
-      .eq("suite_visit_id", visitData!.id);
-
-    if (unitsError) {
-      throw new Error(unitsError.message);
+    if (error) {
+      throw new Error(error.message);
     }
 
     await refreshVisit();
@@ -226,42 +212,30 @@ export function SuiteVisitDetailDialog({
         </div>
 
         <div className="space-y-6 p-6">
-          <VisitStatusEditor
-            label="Status"
-            status={visitData.status}
-            notes={visitData.notes}
-            disabled={refreshing}
-            onSave={handleSuiteStatusSave}
-          />
-
-          {total > 1 && (
-            <p className="text-sm text-zinc-500">
-              Applies to all {total} units in this suite
-            </p>
-          )}
-
-          {visitData.visited_at && (
-            <div className="text-sm">
-              <span className="text-zinc-500">Visited: </span>
-              {formatDate(visitData.visited_at)}
-            </div>
-          )}
-
-          {visitData.notes && (
-            <div>
-              <p className="mb-1 text-sm font-medium text-zinc-500">
-                {visitData.status === "blocked_unit" || visitData.status === "no_access" ? "Reason" : "Notes"}
-              </p>
-              <p className="text-sm">{visitData.notes}</p>
-            </div>
-          )}
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm text-zinc-500">Suite status</span>
+            <Badge variant="secondary">{SUITE_VISIT_STATUS_LABELS[visitData.status]}</Badge>
+            <span className="text-sm text-zinc-500">from unit visits</span>
+          </div>
 
           {visitData.unit_visits.map((unitVisit) => (
             <div key={unitVisit.id} className="space-y-4 rounded-lg border border-zinc-100 p-4">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="font-medium">{unitVisit.unit_name}</p>
-                <Badge variant="secondary">{SUITE_VISIT_STATUS_LABELS[unitVisit.status]}</Badge>
-              </div>
+              <p className="font-medium">{unitVisit.unit_name}</p>
+
+              <VisitStatusEditor
+                label="Unit status"
+                status={unitVisit.status}
+                notes={unitVisit.notes}
+                disabled={refreshing}
+                onSave={(status, notes) => handleUnitStatusSave(unitVisit, status, notes)}
+              />
+
+              {unitVisit.visited_at && (
+                <div className="text-sm">
+                  <span className="text-zinc-500">Visited: </span>
+                  {formatDate(unitVisit.visited_at)}
+                </div>
+              )}
 
               {unitVisit.filter_size && (
                 <div className="text-sm">
