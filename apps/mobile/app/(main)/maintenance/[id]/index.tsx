@@ -386,9 +386,6 @@ export default function SuiteGridScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Text style={styles.back}>← Back</Text>
-        </TouchableOpacity>
         <Text style={styles.title}>{buildingName}</Text>
         {buildingAddress ? (
           <TouchableOpacity
@@ -630,7 +627,6 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  back: { color: colors.primary, fontSize: 16, marginBottom: 8 },
   title: { fontSize: 20, fontWeight: "700", color: colors.text },
   address: { fontSize: 14, color: colors.primary, marginTop: 4, lineHeight: 20 },
   progress: { fontSize: 14, color: colors.textSecondary, marginTop: 4 },

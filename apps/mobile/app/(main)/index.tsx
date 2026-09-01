@@ -83,7 +83,7 @@ export default function MaintenanceListScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>My Jobs</Text>
+        <Text style={styles.title}>My Maintenances</Text>
         <TouchableOpacity onPress={handleLogout}>
           <Text style={styles.logout}>Sign out</Text>
         </TouchableOpacity>
