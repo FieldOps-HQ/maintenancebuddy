@@ -51,6 +51,12 @@ export const suiteUnitDraftSchema = z.object({
 
 export const technicianAddSuiteSchema = suiteCreateSchema;
 
+export const technicianFieldUnitSchema = z.object({
+  suite_number: z.string().min(1, "Suite number is required"),
+  filter_size: z.string().min(1, "Filter size is required"),
+  unit_location: z.string().optional(),
+});
+
 export const hvacUnitSchema = z.object({
   name: z.string().min(1, "Unit name is required"),
   location_notes: z.string().optional(),
@@ -100,6 +106,7 @@ export type SuiteInput = z.infer<typeof suiteSchema>;
 export type SuiteCreateInput = z.infer<typeof suiteCreateSchema>;
 export type SuiteUnitDraftInput = z.infer<typeof suiteUnitDraftSchema>;
 export type TechnicianAddSuiteInput = z.infer<typeof technicianAddSuiteSchema>;
+export type TechnicianFieldUnitInput = z.infer<typeof technicianFieldUnitSchema>;
 export type HvacUnitInput = z.infer<typeof hvacUnitSchema>;
 export type TechnicianAddHvacUnitInput = z.infer<typeof technicianAddHvacUnitSchema>;
 export type MaintenanceInput = z.infer<typeof maintenanceSchema>;

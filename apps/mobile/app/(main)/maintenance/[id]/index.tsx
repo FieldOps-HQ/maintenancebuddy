@@ -18,7 +18,7 @@ import { useLocalSearchParams, router, useFocusEffect } from "expo-router";
 import {
   MOBILE_STATUS_COLORS,
   SUITE_VISIT_STATUS_LABELS,
-  technicianAddSuiteSchema,
+  technicianFieldUnitSchema,
   formatFilterSize,
   formatFilterSizeLabel,
   isUnitVisitDone,
@@ -26,6 +26,7 @@ import {
 import type { SuiteVisitStatus } from "@maintenancebuddy/shared";
 import { supabase } from "@/lib/supabase";
 import { addToOutbox } from "@/lib/outbox";
+import { addFieldUnit } from "@/lib/add-field-unit";
 import { colors, radius } from "@/lib/theme";
 
 interface VisitTile {
@@ -48,19 +49,17 @@ interface FilterSizeOption {
   thickness_in: number;
 }
 
-interface AddSuiteForm {
+interface AddUnitForm {
   suite_number: string;
-  floor: string;
   filter_size: string;
+  unit_location: string;
 }
 
-const emptyAddSuiteForm: AddSuiteForm = {
+const emptyAddUnitForm: AddUnitForm = {
   suite_number: "",
-  floor: "",
   filter_size: "",
+  unit_location: "Main",
 };
-
-const DUPLICATE_SUITE_MESSAGE = "A suite with this number already exists in the building.";
 
 export default function SuiteGridScreen() {
   const { id: maintenanceId } = useLocalSearchParams<{ id: string }>();
@@ -69,9 +68,9 @@ export default function SuiteGridScreen() {
   const [buildingId, setBuildingId] = useState("");
   const [search, setSearch] = useState("");
   const [selectedVisit, setSelectedVisit] = useState<VisitTile | null>(null);
-  const [showAddSuite, setShowAddSuite] = useState(false);
-  const [addSuiteForm, setAddSuiteForm] = useState<AddSuiteForm>(emptyAddSuiteForm);
-  const [addingSuite, setAddingSuite] = useState(false);
+  const [showAddUnit, setShowAddUnit] = useState(false);
+  const [addUnitForm, setAddUnitForm] = useState<AddUnitForm>(emptyAddUnitForm);
+  const [addingUnit, setAddingUnit] = useState(false);
   const [pendingSync, setPendingSync] = useState(0);
   const [filterSizes, setFilterSizes] = useState<FilterSizeOption[]>([]);
   const [filterPickerOpen, setFilterPickerOpen] = useState(false);
@@ -156,21 +155,21 @@ export default function SuiteGridScreen() {
     search.trim().length > 0 &&
     !visits.some((v) => v.suite_number.toLowerCase() === search.trim().toLowerCase());
 
-  function openAddSuiteModal(prefillSuiteNumber?: string) {
-    setAddSuiteForm({
-      ...emptyAddSuiteForm,
+  function openAddUnitModal(prefillSuiteNumber?: string) {
+    setAddUnitForm({
+      ...emptyAddUnitForm,
       suite_number: prefillSuiteNumber ?? "",
     });
     setFilterPickerOpen(false);
-    setShowAddSuite(true);
+    setShowAddUnit(true);
   }
 
   const selectedFilterLabel = filterSizes.find(
-    (s) => formatFilterSize(s) === addSuiteForm.filter_size
+    (s) => formatFilterSize(s) === addUnitForm.filter_size
   );
 
   function selectFilterSize(size: FilterSizeOption) {
-    setAddSuiteForm((f) => ({ ...f, filter_size: formatFilterSize(size) }));
+    setAddUnitForm((f) => ({ ...f, filter_size: formatFilterSize(size) }));
     setFilterPickerOpen(false);
   }
 
@@ -207,16 +206,16 @@ export default function SuiteGridScreen() {
     );
   }
 
-  async function handleAddSuite() {
+  async function handleAddUnit() {
     if (!buildingId || !maintenanceId) {
       Alert.alert("Error", "Missing building information.");
       return;
     }
 
-    const parsed = technicianAddSuiteSchema.safeParse({
-      suite_number: addSuiteForm.suite_number.trim(),
-      floor: addSuiteForm.floor.trim() || undefined,
-      filter_size: addSuiteForm.filter_size.trim(),
+    const parsed = technicianFieldUnitSchema.safeParse({
+      suite_number: addUnitForm.suite_number.trim(),
+      filter_size: addUnitForm.filter_size.trim(),
+      unit_location: addUnitForm.unit_location.trim() || undefined,
     });
 
     if (!parsed.success) {
@@ -224,49 +223,48 @@ export default function SuiteGridScreen() {
       return;
     }
 
-    setAddingSuite(true);
+    setAddingUnit(true);
 
-    const { data: suite, error } = await supabase
-      .from("suites")
-      .insert({ ...parsed.data, filter_quantity: 1, building_id: buildingId })
-      .select("id, suite_number")
-      .single();
+    const result = await addFieldUnit(supabase, buildingId, parsed.data);
 
-    if (error) {
-      if (error.code === "23505") {
-        Alert.alert("Duplicate suite", DUPLICATE_SUITE_MESSAGE);
-      } else {
-        await addToOutbox({
-          type: "add_suite",
-          payload: { buildingId, suite: parsed.data },
-        });
-        setPendingSync((p) => p + 1);
-        setShowAddSuite(false);
-        setAddSuiteForm(emptyAddSuiteForm);
-        Alert.alert(
-          "Saved locally",
-          "Suite will sync when you're back online. Check the grid after reconnecting."
-        );
+    if (result.error) {
+      if (result.error.includes("already exists")) {
+        Alert.alert("Could not add unit", result.error);
+        setAddingUnit(false);
+        return;
       }
-      setAddingSuite(false);
+
+      await addToOutbox({
+        type: "add_suite",
+        payload: {
+          buildingId,
+          suite_number: parsed.data.suite_number,
+          filter_size: parsed.data.filter_size,
+          unit_location: parsed.data.unit_location,
+        },
+      });
+      setPendingSync((p) => p + 1);
+      setShowAddUnit(false);
+      setAddUnitForm(emptyAddUnitForm);
+      Alert.alert(
+        "Saved locally",
+        "Unit will sync when you're back online. Check the grid after reconnecting."
+      );
+      setAddingUnit(false);
       return;
     }
 
-    const { data: mainUnit } = await supabase
-      .from("hvac_units")
-      .select("id")
-      .eq("suite_id", suite.id)
-      .eq("name", "Main unit")
-      .maybeSingle();
-
-    if (mainUnit) {
-      await supabase
-        .from("hvac_units")
-        .update({ filter_size: parsed.data.filter_size, filter_quantity: 1 })
-        .eq("id", mainUnit.id);
-    }
-
     await loadData();
+
+    const suiteId = result.suiteId;
+    if (!suiteId) {
+      setShowAddUnit(false);
+      setAddUnitForm(emptyAddUnitForm);
+      setSearch("");
+      setAddingUnit(false);
+      Alert.alert("Unit added", `Suite ${parsed.data.suite_number} was updated.`);
+      return;
+    }
 
     const { data: visitData } = await supabase
       .from("suite_visits")
@@ -274,7 +272,7 @@ export default function SuiteGridScreen() {
         "id, status, suite_id, suite:suites(suite_number), hvac_unit_visits(id, status, hvac_unit:hvac_units(id, name))"
       )
       .eq("maintenance_id", maintenanceId)
-      .eq("suite_id", suite.id)
+      .eq("suite_id", suiteId)
       .single();
 
     const unitVisits = visitData?.hvac_unit_visits ?? [];
@@ -285,7 +283,7 @@ export default function SuiteGridScreen() {
           id: visitData.id,
           status: visitData.status as SuiteVisitStatus,
           suite_id: visitData.suite_id,
-          suite_number: visitData.suite?.suite_number ?? suite.suite_number,
+          suite_number: visitData.suite?.suite_number ?? parsed.data.suite_number,
           unitsCompleted: unitVisits.filter((uv) =>
             isUnitVisitDone(uv.status as SuiteVisitStatus)
           ).length,
@@ -299,15 +297,15 @@ export default function SuiteGridScreen() {
         }
       : null;
 
-    setShowAddSuite(false);
-    setAddSuiteForm(emptyAddSuiteForm);
+    setShowAddUnit(false);
+    setAddUnitForm(emptyAddUnitForm);
     setSearch("");
-    setAddingSuite(false);
+    setAddingUnit(false);
 
     if (visit) {
       promptStartVisit(visit);
     } else {
-      Alert.alert("Suite added", `Suite ${suite.suite_number} was added to this maintenance.`);
+      Alert.alert("Unit added", `Suite ${parsed.data.suite_number} was added to this maintenance.`);
     }
   }
 
@@ -358,8 +356,8 @@ export default function SuiteGridScreen() {
         {pendingSync > 0 && (
           <Text style={styles.syncBadge}>{pendingSync} pending sync</Text>
         )}
-        <TouchableOpacity style={styles.addButton} onPress={() => openAddSuiteModal()}>
-          <Text style={styles.addButtonText}>+ Add Suite</Text>
+        <TouchableOpacity style={styles.addButton} onPress={() => openAddUnitModal()}>
+          <Text style={styles.addButtonText}>+ Add unit</Text>
         </TouchableOpacity>
       </View>
 
@@ -374,9 +372,9 @@ export default function SuiteGridScreen() {
       {showSearchAddPrompt && (
         <TouchableOpacity
           style={styles.searchAddPrompt}
-          onPress={() => openAddSuiteModal(search.trim())}
+          onPress={() => openAddUnitModal(search.trim())}
         >
-          <Text style={styles.searchAddPromptText}>Add suite "{search.trim()}"?</Text>
+          <Text style={styles.searchAddPromptText}>Add unit for suite "{search.trim()}"?</Text>
         </TouchableOpacity>
       )}
 
@@ -444,34 +442,26 @@ export default function SuiteGridScreen() {
         </Pressable>
       </Modal>
 
-      <Modal visible={showAddSuite} transparent animationType="slide">
+      <Modal visible={showAddUnit} transparent animationType="slide">
         <KeyboardAvoidingView
           style={styles.modalOverlay}
           behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
-          <Pressable style={styles.modalOverlayInner} onPress={() => setShowAddSuite(false)}>
+          <Pressable style={styles.modalOverlayInner} onPress={() => setShowAddUnit(false)}>
             <Pressable style={styles.addSuiteModal} onPress={(e) => e.stopPropagation()}>
               <ScrollView keyboardShouldPersistTaps="handled">
-                <Text style={styles.modalTitle}>Add Missing Suite</Text>
+                <Text style={styles.modalTitle}>Add unit</Text>
                 <Text style={styles.modalSubtitle}>
-                  This suite will be saved to the building and added to this maintenance.
+                  Saved to the building and added to this maintenance. Unit location defaults to Main.
                 </Text>
 
                 <Text style={styles.fieldLabel}>Suite # *</Text>
                 <TextInput
                   style={styles.fieldInput}
-                  placeholder="e.g. 1205"
-                  value={addSuiteForm.suite_number}
-                  onChangeText={(suite_number) => setAddSuiteForm((f) => ({ ...f, suite_number }))}
+                  placeholder="e.g. 201"
+                  value={addUnitForm.suite_number}
+                  onChangeText={(suite_number) => setAddUnitForm((f) => ({ ...f, suite_number }))}
                   keyboardType="number-pad"
-                />
-
-                <Text style={styles.fieldLabel}>Floor</Text>
-                <TextInput
-                  style={styles.fieldInput}
-                  placeholder="e.g. 12"
-                  value={addSuiteForm.floor}
-                  onChangeText={(floor) => setAddSuiteForm((f) => ({ ...f, floor }))}
                 />
 
                 <Text style={styles.fieldLabel}>Filter size *</Text>
@@ -482,7 +472,7 @@ export default function SuiteGridScreen() {
                 >
                   <Text
                     style={
-                      addSuiteForm.filter_size ? styles.filterSelectValue : styles.filterSelectPlaceholder
+                      addUnitForm.filter_size ? styles.filterSelectValue : styles.filterSelectPlaceholder
                     }
                   >
                     {selectedFilterLabel
@@ -499,7 +489,7 @@ export default function SuiteGridScreen() {
                         key={size.id}
                         style={[
                           styles.filterPickerOption,
-                          formatFilterSize(size) === addSuiteForm.filter_size &&
+                          formatFilterSize(size) === addUnitForm.filter_size &&
                             styles.filterPickerOptionSelected,
                         ]}
                         onPress={() => selectFilterSize(size)}
@@ -510,21 +500,29 @@ export default function SuiteGridScreen() {
                   </View>
                 )}
 
+                <Text style={styles.fieldLabel}>Unit location</Text>
+                <TextInput
+                  style={styles.fieldInput}
+                  placeholder="Main"
+                  value={addUnitForm.unit_location}
+                  onChangeText={(unit_location) => setAddUnitForm((f) => ({ ...f, unit_location }))}
+                />
+
                 <TouchableOpacity
-                  style={[styles.modalButton, styles.addSuiteSubmit, addingSuite && styles.buttonDisabled]}
-                  onPress={handleAddSuite}
-                  disabled={addingSuite}
+                  style={[styles.modalButton, styles.addSuiteSubmit, addingUnit && styles.buttonDisabled]}
+                  onPress={handleAddUnit}
+                  disabled={addingUnit}
                 >
-                  {addingSuite ? (
-                    <ActivityIndicator color="#fff" />
+                  {addingUnit ? (
+                    <ActivityIndicator color={colors.white} />
                   ) : (
-                    <Text style={styles.modalButtonText}>Add Suite</Text>
+                    <Text style={styles.modalButtonText}>Add unit</Text>
                   )}
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.modalCancel}
-                  onPress={() => setShowAddSuite(false)}
-                  disabled={addingSuite}
+                  onPress={() => setShowAddUnit(false)}
+                  disabled={addingUnit}
                 >
                   <Text style={styles.modalCancelText}>Cancel</Text>
                 </TouchableOpacity>

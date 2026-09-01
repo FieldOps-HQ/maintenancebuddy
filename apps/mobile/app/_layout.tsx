@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { processOutbox } from "@/lib/outbox";
+import { addFieldUnit } from "@/lib/add-field-unit";
 import { base64ToArrayBuffer } from "@/lib/upload-photo";
 
 const queryClient = new QueryClient();
@@ -52,17 +53,27 @@ export default function RootLayout() {
         });
       },
       addSuite: async (payload) => {
-        const { buildingId, suite } = payload as {
+        const { buildingId, suite_number, filter_size, unit_location, suite } = payload as {
           buildingId: string;
-          suite: {
+          suite_number?: string;
+          filter_size?: string;
+          unit_location?: string;
+          suite?: {
             suite_number: string;
             floor?: string;
             filter_size?: string;
-            filter_quantity?: number;
-            hvac_location_notes?: string;
           };
         };
-        await supabase.from("suites").insert({ ...suite, filter_quantity: 1, building_id: buildingId });
+
+        const result = await addFieldUnit(supabase, buildingId, {
+          suite_number: suite_number ?? suite?.suite_number ?? "",
+          filter_size: filter_size ?? suite?.filter_size ?? "",
+          unit_location,
+        });
+
+        if (result.error) {
+          throw new Error(result.error);
+        }
       },
       addHvacUnit: async (payload) => {
         const { suiteId, unit } = payload as {
