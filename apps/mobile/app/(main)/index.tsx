@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { supabase } from "@/lib/supabase";
+import { formatBuildingAddress } from "@maintenancebuddy/shared";
 import { colors, radius } from "@/lib/theme";
 
 interface MaintenanceItem {
@@ -16,7 +17,13 @@ interface MaintenanceItem {
   start_date: string;
   end_date: string;
   status: string;
-  building: { name: string } | null;
+  building: {
+    name: string;
+    street_number: string;
+    street: string;
+    city: string;
+    postal_code: string;
+  } | null;
   completed: number;
   total: number;
 }
@@ -34,7 +41,7 @@ export default function MaintenanceListScreen() {
       .select(`
         maintenance:maintenances(
           id, start_date, end_date, status,
-          building:buildings(name),
+          building:buildings(name, street_number, street, city, postal_code),
           suite_visits(status)
         )
       `)
@@ -97,6 +104,11 @@ export default function MaintenanceListScreen() {
             onPress={() => router.push(`/maintenance/${item.id}`)}
           >
             <Text style={styles.buildingName}>{item.building?.name}</Text>
+            {item.building ? (
+              <Text style={styles.address}>
+                {formatBuildingAddress(item.building)}
+              </Text>
+            ) : null}
             <Text style={styles.dates}>
               {item.start_date} – {item.end_date}
             </Text>
@@ -139,6 +151,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   buildingName: { fontSize: 18, fontWeight: "600", color: colors.text },
+  address: { fontSize: 13, color: colors.textSecondary, marginTop: 4, lineHeight: 18 },
   dates: { fontSize: 14, color: colors.textSecondary, marginTop: 4 },
   progressRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 12 },
   progress: { fontSize: 14, color: colors.slate700 },

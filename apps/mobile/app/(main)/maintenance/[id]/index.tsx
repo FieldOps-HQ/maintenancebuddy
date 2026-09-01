@@ -22,6 +22,7 @@ import {
   technicianFieldUnitSchema,
   formatFilterSize,
   formatFilterSizeLabel,
+  formatBuildingAddress,
   isUnitVisitDone,
 } from "@maintenancebuddy/shared";
 import type { SuiteVisitStatus } from "@maintenancebuddy/shared";
@@ -74,6 +75,7 @@ export default function SuiteGridScreen() {
   const { id: maintenanceId } = useLocalSearchParams<{ id: string }>();
   const [visits, setVisits] = useState<VisitTile[]>([]);
   const [buildingName, setBuildingName] = useState("");
+  const [buildingAddress, setBuildingAddress] = useState("");
   const [buildingId, setBuildingId] = useState("");
   const [search, setSearch] = useState("");
   const [selectedVisit, setSelectedVisit] = useState<VisitTile | null>(null);
@@ -96,6 +98,10 @@ export default function SuiteGridScreen() {
           building_id,
           building:buildings(
             name,
+            street_number,
+            street,
+            city,
+            postal_code,
             building_contacts(id, name, role, phone, email)
           )
         `)
@@ -117,6 +123,17 @@ export default function SuiteGridScreen() {
 
     setFilterSizes(sizes ?? []);
     setBuildingName(maintenance?.building?.name ?? "");
+    const building = maintenance?.building;
+    setBuildingAddress(
+      building
+        ? formatBuildingAddress({
+            street_number: building.street_number,
+            street: building.street,
+            city: building.city,
+            postal_code: building.postal_code,
+          })
+        : ""
+    );
     setBuildingId(maintenance?.building_id ?? "");
     const buildingContacts = maintenance?.building?.building_contacts ?? [];
     setContacts(
@@ -373,6 +390,13 @@ export default function SuiteGridScreen() {
           <Text style={styles.back}>← Back</Text>
         </TouchableOpacity>
         <Text style={styles.title}>{buildingName}</Text>
+        {buildingAddress ? (
+          <TouchableOpacity
+            onPress={() => Linking.openURL(`https://maps.google.com/?q=${encodeURIComponent(buildingAddress)}`)}
+          >
+            <Text style={styles.address}>{buildingAddress}</Text>
+          </TouchableOpacity>
+        ) : null}
         <Text style={styles.progress}>{completed}/{visits.length} complete</Text>
         {pendingSync > 0 && (
           <Text style={styles.syncBadge}>{pendingSync} pending sync</Text>
@@ -608,6 +632,7 @@ const styles = StyleSheet.create({
   },
   back: { color: colors.primary, fontSize: 16, marginBottom: 8 },
   title: { fontSize: 20, fontWeight: "700", color: colors.text },
+  address: { fontSize: 14, color: colors.primary, marginTop: 4, lineHeight: 20 },
   progress: { fontSize: 14, color: colors.textSecondary, marginTop: 4 },
   syncBadge: { fontSize: 12, color: colors.warning, marginTop: 4 },
   headerActions: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 12 },
