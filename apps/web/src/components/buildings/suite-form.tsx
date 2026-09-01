@@ -198,6 +198,109 @@ function RowIconButton({
 
 type ResolveFilterSize = (input: string) => string | null;
 
+function unitRowKey(unitId: string) {
+  return `unit:${unitId}`;
+}
+
+function suiteRowKey(suiteId: string) {
+  return `suite:${suiteId}`;
+}
+
+function getSelectableKeys(suites: SuiteWithUnits[]): string[] {
+  return suites.flatMap((suite) => {
+    const units = getSortedUnits(suite);
+    if (units.length === 0) return [suiteRowKey(suite.id)];
+    return units.map((unit) => unitRowKey(unit.id));
+  });
+}
+
+function getSuiteUnitKeys(suite: SuiteWithUnits): string[] {
+  const units = getSortedUnits(suite);
+  if (units.length === 0) return [suiteRowKey(suite.id)];
+  return units.map((unit) => unitRowKey(unit.id));
+}
+
+async function deleteSelectedRows(
+  suites: SuiteWithUnits[],
+  selectedKeys: Set<string>
+): Promise<string | null> {
+  const supabase = createClient();
+  const unitsToDelete = new Set<string>();
+  const suitesToDelete = new Set<string>();
+
+  for (const key of selectedKeys) {
+    if (key.startsWith("unit:")) unitsToDelete.add(key.slice(5));
+    if (key.startsWith("suite:")) suitesToDelete.add(key.slice(6));
+  }
+
+  for (const suite of suites) {
+    const units = getSortedUnits(suite);
+    if (units.length === 0) continue;
+
+    const selectedInSuite = units.filter((unit) => unitsToDelete.has(unit.id));
+    if (selectedInSuite.length === units.length) {
+      suitesToDelete.add(suite.id);
+    }
+  }
+
+  for (const unitId of unitsToDelete) {
+    const { error } = await supabase.from("hvac_units").delete().eq("id", unitId);
+    if (error) return error.message;
+  }
+
+  for (const suite of suites) {
+    if (suitesToDelete.has(suite.id)) continue;
+    const units = getSortedUnits(suite);
+    const remaining = units.filter((unit) => !unitsToDelete.has(unit.id)).length;
+    if (units.length > 0 && remaining === 0) {
+      suitesToDelete.add(suite.id);
+    }
+  }
+
+  for (const suiteId of suitesToDelete) {
+    const { error } = await supabase.from("suites").delete().eq("id", suiteId);
+    if (error) return error.message;
+  }
+
+  return null;
+}
+
+const checkboxClass =
+  "h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500 disabled:opacity-50";
+
+function RowCheckbox({
+  checked,
+  indeterminate,
+  disabled,
+  onChange,
+  ariaLabel,
+}: {
+  checked: boolean;
+  indeterminate?: boolean;
+  disabled?: boolean;
+  onChange: (checked: boolean) => void;
+  ariaLabel: string;
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (ref.current) ref.current.indeterminate = Boolean(indeterminate);
+  }, [indeterminate]);
+
+  return (
+    <input
+      ref={ref}
+      type="checkbox"
+      checked={checked}
+      disabled={disabled}
+      aria-label={ariaLabel}
+      onChange={(e) => onChange(e.target.checked)}
+      onClick={(e) => e.stopPropagation()}
+      className={checkboxClass}
+    />
+  );
+}
+
 function ExistingUnitRow({
   suite,
   unit,
@@ -205,6 +308,9 @@ function ExistingUnitRow({
   filterSizes,
   resolveFilterSize,
   nested = false,
+  selected,
+  onSelectedChange,
+  selectionDisabled,
 }: {
   suite: SuiteWithUnits;
   unit: HvacUnit | null;
@@ -212,6 +318,9 @@ function ExistingUnitRow({
   filterSizes: FilterSizeOption[];
   resolveFilterSize: ResolveFilterSize;
   nested?: boolean;
+  selected: boolean;
+  onSelectedChange: (checked: boolean) => void;
+  selectionDisabled?: boolean;
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
@@ -395,6 +504,14 @@ function ExistingUnitRow({
     return (
       <>
         <TableRow className="group border-b border-slate-200 bg-amber-50/40 hover:bg-amber-50/60">
+          <TableCell className="border-r border-slate-200 px-2 py-1.5">
+            <RowCheckbox
+              checked={selected}
+              disabled={selectionDisabled || loading}
+              onChange={onSelectedChange}
+              ariaLabel="Select row"
+            />
+          </TableCell>
           <TableCell className={cn("border-r border-slate-200 p-0", nested && "px-2 py-1.5")}>
             {nested ? (
               <span className="pl-6 font-sans text-xs text-slate-500">↳</span>
@@ -448,7 +565,7 @@ function ExistingUnitRow({
         {error && (
           <TableRow className="hover:bg-transparent">
             <TableCell
-              colSpan={3}
+              colSpan={4}
               className="border-b border-slate-200 bg-amber-50/60 px-2 py-1.5 font-sans text-xs text-red-600"
             >
               {error}
@@ -461,7 +578,20 @@ function ExistingUnitRow({
 
   return (
     <>
-      <TableRow className="group border-b border-slate-200 bg-white hover:bg-slate-50/80">
+      <TableRow
+        className={cn(
+          "group border-b border-slate-200 hover:bg-slate-50/80",
+          selected ? "bg-sky-50/60" : "bg-white"
+        )}
+      >
+        <TableCell className="border-r border-slate-200 px-2 py-1.5">
+          <RowCheckbox
+            checked={selected}
+            disabled={selectionDisabled || loading}
+            onChange={onSelectedChange}
+            ariaLabel={`Select suite ${suite.suite_number}${unit ? `, ${unit.name}` : ""}`}
+          />
+        </TableCell>
         <TableCell
           className={cn(
             "border-r border-slate-200 px-2 py-1.5 text-slate-900",
@@ -509,7 +639,7 @@ function ExistingUnitRow({
       {error && (
         <TableRow className="hover:bg-transparent">
           <TableCell
-            colSpan={3}
+            colSpan={4}
             className="border-b border-slate-200 bg-red-50/40 px-2 py-1.5 font-sans text-xs text-red-600"
           >
             {error}
@@ -527,6 +657,9 @@ function ExistingSuiteRow({
   resolveFilterSize,
   expanded,
   onToggle,
+  selectedKeys,
+  onSelectedKeysChange,
+  selectionDisabled,
 }: {
   suite: SuiteWithUnits;
   suites: SuiteWithUnits[];
@@ -534,11 +667,43 @@ function ExistingSuiteRow({
   resolveFilterSize: ResolveFilterSize;
   expanded: boolean;
   onToggle: () => void;
+  selectedKeys: Set<string>;
+  onSelectedKeysChange: (keys: Set<string>) => void;
+  selectionDisabled?: boolean;
 }) {
   const units = getSortedUnits(suite);
   const isMultiUnit = units.length > 1;
+  const suiteKeys = getSuiteUnitKeys(suite);
+  const selectedCount = suiteKeys.filter((key) => selectedKeys.has(key)).length;
+  const allSelected = suiteKeys.length > 0 && selectedCount === suiteKeys.length;
+  const someSelected = selectedCount > 0 && !allSelected;
+
+  function setSuiteSelection(checked: boolean) {
+    onSelectedKeysChange(
+      (() => {
+        const next = new Set(selectedKeys);
+        for (const key of suiteKeys) {
+          if (checked) next.add(key);
+          else next.delete(key);
+        }
+        return next;
+      })()
+    );
+  }
+
+  function setUnitSelection(key: string, checked: boolean) {
+    onSelectedKeysChange(
+      (() => {
+        const next = new Set(selectedKeys);
+        if (checked) next.add(key);
+        else next.delete(key);
+        return next;
+      })()
+    );
+  }
 
   if (!isMultiUnit) {
+    const key = suiteKeys[0]!;
     return (
       <ExistingUnitRow
         suite={suite}
@@ -546,6 +711,9 @@ function ExistingSuiteRow({
         suites={suites}
         filterSizes={filterSizes}
         resolveFilterSize={resolveFilterSize}
+        selected={selectedKeys.has(key)}
+        onSelectedChange={(checked) => setUnitSelection(key, checked)}
+        selectionDisabled={selectionDisabled}
       />
     );
   }
@@ -553,9 +721,21 @@ function ExistingSuiteRow({
   return (
     <>
       <TableRow
-        className="cursor-pointer border-b border-slate-200 bg-slate-50/80 hover:bg-slate-100/80"
+        className={cn(
+          "cursor-pointer border-b border-slate-200 hover:bg-slate-100/80",
+          someSelected || allSelected ? "bg-sky-50/50" : "bg-slate-50/80"
+        )}
         onClick={onToggle}
       >
+        <TableCell className="border-r border-slate-200 px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
+          <RowCheckbox
+            checked={allSelected}
+            indeterminate={someSelected}
+            disabled={selectionDisabled}
+            onChange={setSuiteSelection}
+            ariaLabel={`Select all units in suite ${suite.suite_number}`}
+          />
+        </TableCell>
         <TableCell className="border-r border-slate-200 px-2 py-1.5 text-slate-900">
           <div className="flex items-center gap-2">
             <ChevronRight
@@ -576,17 +756,23 @@ function ExistingSuiteRow({
         </TableCell>
       </TableRow>
       {expanded &&
-        units.map((unit) => (
-          <ExistingUnitRow
-            key={unit.id}
-            suite={suite}
-            unit={unit}
-            suites={suites}
-            filterSizes={filterSizes}
-            resolveFilterSize={resolveFilterSize}
-            nested
-          />
-        ))}
+        units.map((unit) => {
+          const key = unitRowKey(unit.id);
+          return (
+            <ExistingUnitRow
+              key={unit.id}
+              suite={suite}
+              unit={unit}
+              suites={suites}
+              filterSizes={filterSizes}
+              resolveFilterSize={resolveFilterSize}
+              nested
+              selected={selectedKeys.has(key)}
+              onSelectedChange={(checked) => setUnitSelection(key, checked)}
+              selectionDisabled={selectionDisabled}
+            />
+          );
+        })}
     </>
   );
 }
@@ -608,6 +794,12 @@ export function SuitesSpreadsheet({
   const [draftRows, setDraftRows] = useState<DraftRow[]>(() => [makeDraftRow()]);
   const [focusedCell, setFocusedCell] = useState<CellFocus | null>(null);
   const [expandedSuiteIds, setExpandedSuiteIds] = useState<Set<string>>(new Set());
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
+
+  const selectableKeys = getSelectableKeys(suites);
+  const selectedCount = selectableKeys.filter((key) => selectedKeys.has(key)).length;
+  const allSelected = selectableKeys.length > 0 && selectedCount === selectableKeys.length;
+  const someSelected = selectedCount > 0 && !allSelected;
 
   useEffect(() => {
     const stored =
@@ -636,6 +828,36 @@ export function SuitesSpreadsheet({
       else next.add(suiteId);
       return next;
     });
+  }
+
+  function toggleSelectAll(checked: boolean) {
+    setSelectedKeys(checked ? new Set(selectableKeys) : new Set());
+  }
+
+  async function handleBulkDelete() {
+    if (selectedCount === 0) return;
+
+    if (
+      !confirm(
+        `Delete ${selectedCount} selected row(s)? Related visit records will also be removed.`
+      )
+    ) {
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+
+    const deleteError = await deleteSelectedRows(suites, selectedKeys);
+    if (deleteError) {
+      setError(deleteError);
+      setLoading(false);
+      return;
+    }
+
+    setSelectedKeys(new Set());
+    router.refresh();
+    setLoading(false);
   }
 
   const resolveFilterSize = useCallback(
@@ -923,8 +1145,8 @@ export function SuitesSpreadsheet({
       <CardHeader className="shrink-0 space-y-1 pb-3">
         <CardTitle>Suites ({suites.length})</CardTitle>
         <CardDescription>
-          Add units in the highlighted row below. Suites with multiple units collapse into one
-          expandable row. Hover a row to edit or delete.
+          Add units in the highlighted row below. Select rows to delete in bulk, or hover a row to
+          edit or delete individually.
         </CardDescription>
         {filterSizes.length === 0 && (
           <p className="font-sans text-sm text-slate-500">
@@ -962,10 +1184,46 @@ export function SuitesSpreadsheet({
               {error}
             </p>
           )}
+          {selectedCount > 0 && (
+            <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-3 py-2 font-sans">
+              <p className="text-sm text-slate-700">
+                {selectedCount} row{selectedCount === 1 ? "" : "s"} selected
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={loading}
+                  onClick={() => setSelectedKeys(new Set())}
+                >
+                  Clear
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="destructive"
+                  disabled={loading}
+                  onClick={() => void handleBulkDelete()}
+                >
+                  {loading ? "Deleting..." : `Delete selected (${selectedCount})`}
+                </Button>
+              </div>
+            </div>
+          )}
           <div className="min-h-0 flex-1 overflow-auto">
             <Table>
               <TableHeader>
                 <TableRow className="sticky top-0 z-10 border-b border-slate-300 bg-slate-100 hover:bg-slate-100">
+                  <TableHead className="w-10 border-r border-slate-200 px-2">
+                    <RowCheckbox
+                      checked={allSelected}
+                      indeterminate={someSelected}
+                      disabled={loading || selectableKeys.length === 0}
+                      onChange={toggleSelectAll}
+                      ariaLabel="Select all rows"
+                    />
+                  </TableHead>
                   <TableHead className="border-r border-slate-200">Suite #</TableHead>
                   <TableHead className="border-r border-slate-200">Filter size</TableHead>
                   <TableHead className="border-r border-slate-200">Unit location</TableHead>
@@ -977,6 +1235,7 @@ export function SuitesSpreadsheet({
                     key={row.id}
                     className="border-b border-slate-200 bg-sky-50/30 hover:bg-sky-50/50"
                   >
+                    <TableCell className="border-r border-slate-200" />
                     <TableCell className="border-r border-slate-200 p-0">
                       <Input
                         placeholder="201"
@@ -1018,12 +1277,15 @@ export function SuitesSpreadsheet({
                     resolveFilterSize={resolveFilterSize}
                     expanded={expandedSuiteIds.has(suite.id)}
                     onToggle={() => toggleSuiteExpanded(suite.id)}
+                    selectedKeys={selectedKeys}
+                    onSelectedKeysChange={setSelectedKeys}
+                    selectionDisabled={loading}
                   />
                 ))}
 
                 {suites.length === 0 && draftRows.every((r) => !r.suite_number.trim()) && (
                   <TableRow className="hover:bg-transparent">
-                    <TableCell colSpan={3} className="py-8 text-center font-sans text-sm text-slate-500">
+                    <TableCell colSpan={4} className="py-8 text-center font-sans text-sm text-slate-500">
                       No suites yet. Add a unit using the row above.
                     </TableCell>
                   </TableRow>
