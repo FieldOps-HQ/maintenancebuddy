@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { supabase } from "@/lib/supabase";
+import { colors, radius } from "@/lib/theme";
 
 interface MaintenanceItem {
   id: string;
@@ -115,34 +116,39 @@ export default function MaintenanceListScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fafafa" },
+  container: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     padding: 20,
     paddingTop: 60,
-    backgroundColor: "#fff",
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: "#e4e4e7",
+    borderBottomColor: colors.border,
   },
-  title: { fontSize: 24, fontWeight: "700", color: "#18181b" },
-  logout: { color: "#71717a", fontSize: 14 },
+  title: { fontSize: 24, fontWeight: "700", color: colors.text },
+  logout: { color: colors.textSecondary, fontSize: 14 },
   card: {
-    backgroundColor: "#fff",
+    backgroundColor: colors.surface,
     marginHorizontal: 16,
     marginTop: 12,
     padding: 16,
-    borderRadius: 12,
+    borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: "#e4e4e7",
+    borderColor: colors.border,
   },
-  buildingName: { fontSize: 18, fontWeight: "600", color: "#18181b" },
-  dates: { fontSize: 14, color: "#71717a", marginTop: 4 },
+  buildingName: { fontSize: 18, fontWeight: "600", color: colors.text },
+  dates: { fontSize: 14, color: colors.textSecondary, marginTop: 4 },
   progressRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 12 },
-  progress: { fontSize: 14, color: "#52525b" },
-  badge: { backgroundColor: "#f4f4f5", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
-  badgeActive: { backgroundColor: "#fef3c7" },
-  badgeText: { fontSize: 12, fontWeight: "500", textTransform: "capitalize" },
-  empty: { textAlign: "center", color: "#71717a", marginTop: 40, fontSize: 16 },
+  progress: { fontSize: 14, color: colors.slate700 },
+  badge: {
+    backgroundColor: colors.slate100,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: radius.md,
+  },
+  badgeActive: { backgroundColor: colors.amber50 },
+  badgeText: { fontSize: 12, fontWeight: "500", textTransform: "capitalize", color: colors.slate700 },
+  empty: { textAlign: "center", color: colors.textSecondary, marginTop: 40, fontSize: 16 },
 });

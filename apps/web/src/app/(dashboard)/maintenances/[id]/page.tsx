@@ -100,106 +100,64 @@ export default async function MaintenanceDetailPage({
 
   if (!maintenance) notFound();
 
-  const { data: filterSummary } = await supabase
-    .from("maintenance_filter_summary")
-    .select("*")
-    .eq("maintenance_id", id);
-
   const visits = maintenance.suite_visits ?? [];
   const total = visits.length;
-  const completed = visits.filter((v) => v.status === "completed").length;
-  const blocked = visits.filter((v) => v.status === "blocked_unit").length;
-  const noAccess = visits.filter((v) => v.status === "no_access").length;
-  const pending = visits.filter((v) => v.status === "pending").length;
+  const done = visits.filter((v) =>
+    ["completed", "blocked_unit", "no_access"].includes(v.status)
+  ).length;
   const deficiencies = visits.flatMap((v) =>
     (v.hvac_unit_visits ?? []).flatMap((uv) => uv.deficiencies ?? [])
   );
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <MaintenanceHeader
-          maintenance={{
-            id: maintenance.id,
-            building_id: maintenance.building_id,
-            start_date: maintenance.start_date,
-            end_date: maintenance.end_date,
-            status: maintenance.status,
-            notes: maintenance.notes,
-          }}
-          buildingName={maintenance.building?.name ?? "Maintenance"}
-          technicians={technicians ?? []}
-          assignedTechnicianIds={
-            maintenance.assignments?.map((a) => a.technician_id).filter(Boolean) ?? []
-          }
-          activeMaintenances={activeMaintenances ?? []}
-        />
+        <div className="space-y-1">
+          <MaintenanceHeader
+            maintenance={{
+              id: maintenance.id,
+              building_id: maintenance.building_id,
+              start_date: maintenance.start_date,
+              end_date: maintenance.end_date,
+              status: maintenance.status,
+              notes: maintenance.notes,
+            }}
+            buildingName={maintenance.building?.name ?? "Maintenance"}
+            technicians={technicians ?? []}
+            assignedTechnicianIds={
+              maintenance.assignments?.map((a) => a.technician_id).filter(Boolean) ?? []
+            }
+            activeMaintenances={activeMaintenances ?? []}
+          />
+          <p className="text-sm text-slate-500">
+            {done}/{total} suites complete
+          </p>
+        </div>
         <DownloadReportButton maintenanceId={id} />
       </div>
 
-      <div className="grid gap-4 md:grid-cols-4">
-        {[
-          { label: "Completed", value: completed, color: "text-emerald-600", bg: "bg-emerald-50" },
-          { label: "Pending", value: pending, color: "text-slate-600", bg: "bg-slate-50" },
-          { label: "No Access", value: noAccess, color: "text-amber-600", bg: "bg-amber-50" },
-          { label: "Blocked", value: blocked, color: "text-red-600", bg: "bg-red-50" },
-        ].map(({ label, value, color, bg }) => (
-          <Card key={label} className="hover:shadow-md">
-            <CardContent className="flex items-center gap-4 pt-6">
-              <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${bg}`}>
-                <span className={`text-lg font-bold ${color}`}>{value}</span>
-              </div>
-              <div>
-                <p className="text-sm text-slate-500">{label}</p>
-                <p className={`text-2xl font-bold ${color}`}>{value}</p>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      <MaintenanceProgress
+        maintenanceId={id}
+        initialVisits={visits.map(mapInitialVisit)}
+      />
 
-      <div className="grid gap-8 lg:grid-cols-3">
-        <div className="lg:col-span-2">
-          <MaintenanceProgress
-            maintenanceId={id}
-            initialVisits={visits.map(mapInitialVisit)}
-          />
-        </div>
-
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Assigned Technicians</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {maintenance.assignments?.map((a) => (
-                <div key={a.technician?.email} className="text-sm">
-                  <p className="font-medium">{a.technician?.full_name}</p>
-                  <p className="text-zinc-500">{a.technician?.email}</p>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Filter Requirements</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {!filterSummary?.length ? (
-                <p className="text-sm text-zinc-500">No filter data</p>
-              ) : (
-                <div className="space-y-2">
-                  {filterSummary.map((f) => (
-                    <div key={f.filter_size} className="flex justify-between text-sm">
-                      <span>{f.filter_size}</span>
-                      <span className="font-medium">{f.total_quantity}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+      {(maintenance.assignments?.length ?? 0) > 0 || deficiencies.length > 0 ? (
+        <div className="grid gap-6 lg:grid-cols-2">
+          {(maintenance.assignments?.length ?? 0) > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Assigned Technicians</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {maintenance.assignments?.map((a) => (
+                  <div key={a.technician?.email} className="text-sm">
+                    <p className="font-medium">{a.technician?.full_name}</p>
+                    <p className="text-slate-500">{a.technician?.email}</p>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
 
           {deficiencies.length > 0 && (
             <Card>
@@ -225,21 +183,7 @@ export default async function MaintenanceDetailPage({
             </Card>
           )}
         </div>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Progress: {completed + blocked + noAccess} / {total} suites</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="h-3 w-full overflow-hidden rounded-full bg-slate-100">
-            <div
-              className="h-full rounded-full bg-emerald-500 transition-all"
-              style={{ width: `${total ? ((completed + blocked + noAccess) / total) * 100 : 0}%` }}
-            />
-          </div>
-        </CardContent>
-      </Card>
+      ) : null}
     </div>
   );
 }

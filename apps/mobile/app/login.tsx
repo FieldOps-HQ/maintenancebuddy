@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { router } from "expo-router";
 import { supabase } from "@/lib/supabase";
+import { colors, radius } from "@/lib/theme";
 
 export default function LoginScreen() {
   const [email, setEmail] = useState("");
@@ -96,20 +97,26 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: "center", backgroundColor: "#fafafa", padding: 24 },
-  card: { backgroundColor: "#fff", borderRadius: 16, padding: 24, borderWidth: 1, borderColor: "#e4e4e7" },
-  title: { fontSize: 24, fontWeight: "700", textAlign: "center", color: "#18181b" },
-  subtitle: { fontSize: 14, color: "#71717a", textAlign: "center", marginBottom: 24, marginTop: 4 },
+  container: { flex: 1, justifyContent: "center", backgroundColor: colors.background, padding: 24 },
+  card: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  title: { fontSize: 24, fontWeight: "700", textAlign: "center", color: colors.text },
+  subtitle: { fontSize: 14, color: colors.textMuted, textAlign: "center", marginBottom: 24, marginTop: 4 },
   input: {
     borderWidth: 1,
-    borderColor: "#e4e4e7",
-    borderRadius: 8,
+    borderColor: colors.border,
+    borderRadius: radius.sm,
     padding: 14,
     fontSize: 16,
     marginBottom: 12,
-    backgroundColor: "#fff",
+    backgroundColor: colors.surface,
   },
-  button: { backgroundColor: "#18181b", borderRadius: 8, padding: 16, marginTop: 8 },
+  button: { backgroundColor: colors.primary, borderRadius: radius.sm, padding: 16, marginTop: 8 },
   buttonDisabled: { opacity: 0.6 },
-  buttonText: { color: "#fff", fontSize: 16, fontWeight: "600", textAlign: "center" },
+  buttonText: { color: colors.white, fontSize: 16, fontWeight: "600", textAlign: "center" },
 });

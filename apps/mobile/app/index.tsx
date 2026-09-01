@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { View, ActivityIndicator } from "react-native";
 import { Redirect } from "expo-router";
 import { supabase } from "@/lib/supabase";
+import { colors } from "@/lib/theme";
 import type { Session } from "@supabase/supabase-js";
 
 export default function Index() {
@@ -18,7 +19,7 @@ export default function Index() {
   if (session === undefined) {
     return (
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-        <ActivityIndicator size="large" color="#18181b" />
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }

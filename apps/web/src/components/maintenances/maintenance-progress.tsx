@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { MOBILE_STATUS_COLORS, SUITE_VISIT_STATUS_LABELS, countCompletedUnitVisits } from "@maintenancebuddy/shared";
 import type { SuiteVisitStatus } from "@maintenancebuddy/shared";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import {
   SuiteVisitDetailDialog,
   type SuiteVisitDetailData,
@@ -85,6 +86,16 @@ export function MaintenanceProgress({
 }) {
   const [visits, setVisits] = useState(initialVisits);
   const [selectedVisit, setSelectedVisit] = useState<SuiteVisitDetailData | null>(null);
+  const [search, setSearch] = useState("");
+
+  const filteredVisits = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    const sorted = [...visits].sort((a, b) =>
+      a.suite_number.localeCompare(b.suite_number, undefined, { numeric: true })
+    );
+    if (!query) return sorted;
+    return sorted.filter((visit) => visit.suite_number.toLowerCase().includes(query));
+  }, [visits, search]);
 
   const fetchVisits = useCallback(async () => {
     const supabase = createClient();
@@ -159,14 +170,23 @@ export function MaintenanceProgress({
   return (
     <>
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Suite Progress</CardTitle>
-          <p className="text-xs text-zinc-500">Click a suite to view unit details and photos</p>
-          <div className="flex flex-wrap gap-3 text-xs">
+        <CardHeader className="space-y-3">
+          <div>
+            <CardTitle className="text-base">Suites</CardTitle>
+            <p className="text-xs text-slate-500">Click a suite to view unit details and photos</p>
+          </div>
+          <Input
+            type="search"
+            placeholder="Search suite number..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="max-w-xs"
+          />
+          <div className="flex flex-wrap gap-3 text-xs text-slate-500">
             {(["pending", "completed", "no_access", "blocked_unit"] as SuiteVisitStatus[]).map((s) => (
-              <span key={s} className="flex items-center gap-1">
+              <span key={s} className="flex items-center gap-1.5">
                 <span
-                  className="inline-block h-3 w-3 rounded"
+                  className="inline-block h-2.5 w-2.5 rounded-full"
                   style={{ backgroundColor: MOBILE_STATUS_COLORS[s] }}
                 />
                 {SUITE_VISIT_STATUS_LABELS[s]}
@@ -175,10 +195,13 @@ export function MaintenanceProgress({
           </div>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-4 gap-2 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10">
-            {visits
-              .sort((a, b) => a.suite_number.localeCompare(b.suite_number, undefined, { numeric: true }))
-              .map((visit) => {
+          {filteredVisits.length === 0 ? (
+            <p className="py-8 text-center text-sm text-slate-500">
+              {search.trim() ? `No suites matching "${search.trim()}"` : "No suites in this maintenance."}
+            </p>
+          ) : (
+          <div className="grid grid-cols-4 gap-2 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12">
+            {filteredVisits.map((visit) => {
                 const { completed, total } = countCompletedUnitVisits(visit.unit_visits);
                 const progressLabel = total > 1 ? `${completed}/${total}` : visit.suite_number;
 
@@ -202,6 +225,7 @@ export function MaintenanceProgress({
                 );
               })}
           </div>
+          )}
         </CardContent>
       </Card>
 

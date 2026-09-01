@@ -26,6 +26,7 @@ import {
 import type { SuiteVisitStatus } from "@maintenancebuddy/shared";
 import { supabase } from "@/lib/supabase";
 import { addToOutbox } from "@/lib/outbox";
+import { colors, radius } from "@/lib/theme";
 
 interface UnitTile {
   id: string;
@@ -309,13 +310,13 @@ export default function SuiteUnitsScreen() {
             <Text style={styles.modalTitle}>Suite {suiteNumber}</Text>
             <Text style={styles.modalSubtitle}>Mark entire suite</Text>
             <TouchableOpacity
-              style={[styles.modalButton, { backgroundColor: "#eab308" }]}
+              style={[styles.modalButton, { backgroundColor: colors.warning }]}
               onPress={() => handleQuickAction("no_access")}
             >
               <Text style={styles.modalButtonText}>No Access</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.modalButton, { backgroundColor: "#ef4444" }]}
+              style={[styles.modalButton, { backgroundColor: colors.danger }]}
               onPress={() => handleQuickAction("blocked_unit")}
             >
               <Text style={styles.modalButtonText}>Blocked Unit</Text>
@@ -419,84 +420,98 @@ export default function SuiteUnitsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fafafa" },
-  header: { padding: 16, paddingTop: 8, backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#e4e4e7" },
-  back: { color: "#3b82f6", fontSize: 16, marginBottom: 8 },
-  title: { fontSize: 20, fontWeight: "700", color: "#18181b" },
-  progress: { fontSize: 14, color: "#71717a", marginTop: 4 },
+  container: { flex: 1, backgroundColor: colors.background },
+  header: {
+    padding: 16,
+    paddingTop: 8,
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  back: { color: colors.primary, fontSize: 16, marginBottom: 8 },
+  title: { fontSize: 20, fontWeight: "700", color: colors.text },
+  progress: { fontSize: 14, color: colors.textSecondary, marginTop: 4 },
   addButton: {
     marginTop: 12,
     alignSelf: "flex-start",
-    backgroundColor: "#18181b",
+    backgroundColor: colors.primary,
     paddingHorizontal: 14,
     paddingVertical: 8,
-    borderRadius: 8,
+    borderRadius: radius.sm,
   },
-  addButtonText: { color: "#fff", fontSize: 14, fontWeight: "600" },
+  addButtonText: { color: colors.white, fontSize: 14, fontWeight: "600" },
   quickActionLink: { marginTop: 8 },
-  quickActionText: { color: "#3b82f6", fontSize: 14 },
+  quickActionText: { color: colors.primary, fontSize: 14 },
   blockedBanner: {
     margin: 16,
     padding: 16,
-    backgroundColor: "#fef3c7",
-    borderRadius: 8,
+    backgroundColor: colors.amber50,
+    borderRadius: radius.sm,
   },
-  blockedBannerText: { color: "#92400e", fontSize: 14 },
+  blockedBannerText: { color: colors.amber800, fontSize: 14 },
   list: { padding: 16, gap: 12 },
   unitCard: {
-    backgroundColor: "#fff",
+    backgroundColor: colors.surface,
     borderRadius: 10,
     padding: 16,
     borderLeftWidth: 4,
     marginBottom: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   unitCardHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  unitName: { fontSize: 17, fontWeight: "700", color: "#18181b" },
-  unitStatus: { fontSize: 13, color: "#71717a" },
-  unitFilter: { marginTop: 6, fontSize: 13, color: "#52525b" },
-  emptyText: { textAlign: "center", color: "#71717a", marginTop: 40 },
-  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center" },
+  unitName: { fontSize: 17, fontWeight: "700", color: colors.text },
+  unitStatus: { fontSize: 13, color: colors.textSecondary },
+  unitFilter: { marginTop: 6, fontSize: 13, color: colors.slate700 },
+  emptyText: { textAlign: "center", color: colors.textSecondary, marginTop: 40 },
+  modalOverlay: { flex: 1, backgroundColor: colors.overlay, justifyContent: "center" },
   modalOverlayInner: { flex: 1, justifyContent: "center", padding: 24 },
-  modalContent: { backgroundColor: "#fff", borderRadius: 16, padding: 24, margin: 24 },
-  addModal: { backgroundColor: "#fff", borderRadius: 16, padding: 24, maxHeight: "85%" },
-  modalTitle: { fontSize: 20, fontWeight: "700", textAlign: "center" },
-  modalSubtitle: { fontSize: 14, color: "#71717a", textAlign: "center", marginBottom: 20, marginTop: 4 },
-  fieldLabel: { fontSize: 13, fontWeight: "600", color: "#52525b", marginBottom: 6 },
+  modalContent: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: 24, margin: 24 },
+  addModal: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: 24, maxHeight: "85%" },
+  modalTitle: { fontSize: 20, fontWeight: "700", textAlign: "center", color: colors.text },
+  modalSubtitle: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    textAlign: "center",
+    marginBottom: 20,
+    marginTop: 4,
+  },
+  fieldLabel: { fontSize: 13, fontWeight: "600", color: colors.slate700, marginBottom: 6 },
   fieldInput: {
     borderWidth: 1,
-    borderColor: "#e4e4e7",
-    borderRadius: 8,
+    borderColor: colors.border,
+    borderRadius: radius.sm,
     padding: 12,
     fontSize: 16,
     marginBottom: 14,
-    backgroundColor: "#fff",
+    backgroundColor: colors.surface,
   },
-  fieldDisabled: { backgroundColor: "#f4f4f5", opacity: 0.8 },
+  fieldDisabled: { backgroundColor: colors.slate100, opacity: 0.8 },
   filterSelect: { justifyContent: "center" },
-  filterSelectValue: { fontSize: 16, color: "#18181b" },
-  filterSelectPlaceholder: { fontSize: 16, color: "#a1a1aa" },
+  filterSelectValue: { fontSize: 16, color: colors.text },
+  filterSelectPlaceholder: { fontSize: 16, color: colors.textMuted },
   filterPickerList: {
     marginTop: -10,
     marginBottom: 14,
     borderWidth: 1,
-    borderColor: "#e4e4e7",
-    borderRadius: 8,
+    borderColor: colors.border,
+    borderRadius: radius.sm,
     overflow: "hidden",
-    backgroundColor: "#fff",
+    backgroundColor: colors.surface,
   },
   filterPickerOption: {
     paddingVertical: 12,
     paddingHorizontal: 14,
     borderBottomWidth: 1,
-    borderBottomColor: "#f4f4f5",
+    borderBottomColor: colors.borderLight,
   },
-  filterPickerOptionSelected: { backgroundColor: "#eff6ff" },
-  filterPickerOptionText: { fontSize: 16, color: "#18181b" },
+  filterPickerOptionSelected: { backgroundColor: colors.primaryLight },
+  filterPickerOptionText: { fontSize: 16, color: colors.text },
   fieldTextArea: { minHeight: 72, textAlignVertical: "top" },
   modalButton: { padding: 16, borderRadius: 10, marginBottom: 10 },
-  addSubmit: { backgroundColor: "#22c55e", marginTop: 4 },
+  addSubmit: { backgroundColor: colors.success, marginTop: 4 },
   buttonDisabled: { opacity: 0.7 },
-  modalButtonText: { color: "#fff", fontSize: 16, fontWeight: "600", textAlign: "center" },
+  modalButtonText: { color: colors.white, fontSize: 16, fontWeight: "600", textAlign: "center" },
   modalCancel: { padding: 12, marginTop: 4 },
-  modalCancelText: { textAlign: "center", color: "#71717a", fontSize: 16 },
+  modalCancelText: { textAlign: "center", color: colors.textSecondary, fontSize: 16 },
 });
