@@ -12,16 +12,12 @@ import {
   Platform,
   Modal,
   Pressable,
-  ScrollView,
 } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import {
   WIZARD_STEPS,
   WIZARD_NO_REASON_PROMPTS,
-  technicianAddHvacUnitSchema,
-  formatFilterSize,
-  formatFilterSizeLabel,
 } from "@maintenancebuddy/shared";
 import type { SuiteVisitStatus } from "@maintenancebuddy/shared";
 import { supabase } from "@/lib/supabase";
@@ -51,23 +47,6 @@ const TERMINAL_UNIT_STATUSES: SuiteVisitStatus[] = [
   "no_access",
   "skipped",
 ];
-
-interface FilterSizeOption {
-  id: string;
-  length_in: number;
-  width_in: number;
-  thickness_in: number;
-}
-
-interface AddUnitForm {
-  name: string;
-  filter_size: string;
-}
-
-const emptyAddUnitForm: AddUnitForm = {
-  name: "",
-  filter_size: "",
-};
 
 export default function WizardScreen() {
   const params = useLocalSearchParams<{
@@ -101,41 +80,10 @@ export default function WizardScreen() {
   const [showCamera, setShowCamera] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [showActions, setShowActions] = useState(false);
-  const [showAddUnit, setShowAddUnit] = useState(false);
-  const [addUnitForm, setAddUnitForm] = useState<AddUnitForm>(emptyAddUnitForm);
-  const [addingUnit, setAddingUnit] = useState(false);
-  const [filterSizes, setFilterSizes] = useState<FilterSizeOption[]>([]);
-  const [filterPickerOpen, setFilterPickerOpen] = useState(false);
-  const [unitCount, setUnitCount] = useState(1);
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
 
   const currentStep = WIZARD_STEPS[step];
-
-  useEffect(() => {
-    if (!visitId) return;
-
-    async function loadFilterSizes() {
-      const { data: sizes } = await supabase
-        .from("filter_sizes")
-        .select("id, length_in, width_in, thickness_in")
-        .order("length_in")
-        .order("width_in")
-        .order("thickness_in");
-      setFilterSizes(sizes ?? []);
-    }
-
-    async function loadUnitCount() {
-      const { count } = await supabase
-        .from("hvac_unit_visits")
-        .select("id", { count: "exact", head: true })
-        .eq("suite_visit_id", visitId);
-      setUnitCount(count ?? 1);
-    }
-
-    loadFilterSizes();
-    loadUnitCount();
-  }, [visitId]);
 
   useEffect(() => {
     if (!unitVisitId || params.edit !== "true") return;
@@ -260,96 +208,6 @@ export default function WizardScreen() {
     ]);
   }
 
-  async function handleResetPending() {
-    setShowActions(false);
-    Alert.alert("Reset to pending?", "Clears the terminal status so you can service this unit again.", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Reset",
-        onPress: async () => {
-          await updateUnitStatus({
-            status: "pending",
-            visited_at: null,
-            notes: null,
-            cleaned: null,
-            filter_changed: null,
-            operating_normally: null,
-          });
-          setIsEditing(false);
-          setAnswers({});
-          setPhotoUri(null);
-          setPhotoBase64(null);
-          setHasExistingPhoto(false);
-          setStep(0);
-        },
-      },
-    ]);
-  }
-
-  async function handleAddUnit() {
-    if (!suiteId) {
-      Alert.alert("Error", "Missing suite information.");
-      return;
-    }
-
-    const parsed = technicianAddHvacUnitSchema.safeParse({
-      name: addUnitForm.name.trim(),
-      filter_size: addUnitForm.filter_size.trim() || undefined,
-    });
-
-    if (!parsed.success) {
-      Alert.alert("Invalid input", parsed.error.errors[0]?.message ?? "Check the form fields.");
-      return;
-    }
-
-    setAddingUnit(true);
-
-    const { error } = await supabase.from("hvac_units").insert({
-      ...parsed.data,
-      filter_quantity: 1,
-      suite_id: suiteId,
-    });
-
-    setAddingUnit(false);
-
-    if (error) {
-      if (error.code === "23505") {
-        Alert.alert("Duplicate unit", "A unit with this name already exists in the suite.");
-      } else {
-        await addToOutbox({
-          type: "add_hvac_unit",
-          payload: { suiteId, visitId, unit: parsed.data },
-        });
-        Alert.alert("Saved locally", "Unit will sync when you're back online.");
-      }
-      return;
-    }
-
-    setShowAddUnit(false);
-    setAddUnitForm(emptyAddUnitForm);
-    const newCount = unitCount + 1;
-    setUnitCount(newCount);
-
-    Alert.alert("Unit added", newCount > 1 ? "View all units in this suite?" : "Unit added.", [
-      { text: "Continue", style: "cancel" },
-      ...(newCount > 1
-        ? [
-            {
-              text: "View units",
-              onPress: () =>
-                router.replace(
-                  `/maintenance/${maintenanceId}/suite/${visitId}?suiteNumber=${suiteNumber}&suiteId=${suiteId}`
-                ),
-            },
-          ]
-        : []),
-    ]);
-  }
-
-  const selectedFilterLabel = filterSizes.find(
-    (s) => formatFilterSize(s) === addUnitForm.filter_size
-  );
-
   function TopBar({ onBack }: { onBack: () => void }) {
     return (
       <View style={styles.topBar}>
@@ -365,112 +223,22 @@ export default function WizardScreen() {
 
   function renderModals() {
     return (
-      <>
-        <Modal visible={showActions} transparent animationType="fade">
-          <Pressable style={styles.modalOverlay} onPress={() => setShowActions(false)}>
-            <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>Unit actions</Text>
-              <TouchableOpacity
-                style={styles.modalAction}
-                onPress={() => {
-                  setShowActions(false);
-                  setShowAddUnit(true);
-                }}
-              >
-                <Text style={styles.modalActionText}>Add unit</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.modalAction} onPress={handleMarkBlocked}>
-                <Text style={[styles.modalActionText, styles.modalActionDestructive]}>Mark blocked</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.modalAction} onPress={handleMarkNoAccess}>
-                <Text style={styles.modalActionText}>Mark no access</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.modalAction} onPress={handleResetPending}>
-                <Text style={styles.modalActionText}>Reset to pending</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.modalCancel} onPress={() => setShowActions(false)}>
-                <Text style={styles.modalCancelText}>Cancel</Text>
-              </TouchableOpacity>
-            </View>
-          </Pressable>
-        </Modal>
-
-        <Modal visible={showAddUnit} transparent animationType="slide">
-          <KeyboardAvoidingView
-            style={styles.modalOverlay}
-            behavior={Platform.OS === "ios" ? "padding" : undefined}
-          >
-            <Pressable style={styles.modalOverlayInner} onPress={() => setShowAddUnit(false)}>
-              <Pressable style={styles.addModal} onPress={(e) => e.stopPropagation()}>
-                <ScrollView keyboardShouldPersistTaps="handled">
-                  <Text style={styles.modalTitle}>Add HVAC Unit</Text>
-                  <Text style={styles.fieldLabel}>Unit name *</Text>
-                  <TextInput
-                    style={styles.fieldInput}
-                    placeholder="e.g. Server room"
-                    value={addUnitForm.name}
-                    onChangeText={(name) => setAddUnitForm((f) => ({ ...f, name }))}
-                  />
-                  <Text style={styles.fieldLabel}>Filter size</Text>
-                  <TouchableOpacity
-                    style={[styles.fieldInput, styles.filterSelect, filterSizes.length === 0 && styles.fieldDisabled]}
-                    onPress={() => filterSizes.length > 0 && setFilterPickerOpen((open) => !open)}
-                    disabled={filterSizes.length === 0}
-                  >
-                    <Text
-                      style={
-                        addUnitForm.filter_size ? styles.filterSelectValue : styles.filterSelectPlaceholder
-                      }
-                    >
-                      {selectedFilterLabel
-                        ? formatFilterSizeLabel(selectedFilterLabel)
-                        : filterSizes.length === 0
-                          ? "No filter sizes configured"
-                          : "Select filter size"}
-                    </Text>
-                  </TouchableOpacity>
-                  {filterPickerOpen && (
-                    <View style={styles.filterPickerList}>
-                      {filterSizes.map((size) => (
-                        <TouchableOpacity
-                          key={size.id}
-                          style={[
-                            styles.filterPickerOption,
-                            formatFilterSize(size) === addUnitForm.filter_size &&
-                              styles.filterPickerOptionSelected,
-                          ]}
-                          onPress={() => {
-                            setAddUnitForm((f) => ({ ...f, filter_size: formatFilterSize(size) }));
-                            setFilterPickerOpen(false);
-                          }}
-                        >
-                          <Text style={styles.filterPickerOptionText}>
-                            {formatFilterSizeLabel(size)}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  )}
-                  <TouchableOpacity
-                    style={[styles.modalSubmit, addingUnit && styles.buttonDisabled]}
-                    onPress={handleAddUnit}
-                    disabled={addingUnit}
-                  >
-                    {addingUnit ? (
-                      <ActivityIndicator color="#fff" />
-                    ) : (
-                      <Text style={styles.modalSubmitText}>Add unit</Text>
-                    )}
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.modalCancel} onPress={() => setShowAddUnit(false)}>
-                    <Text style={styles.modalCancelText}>Cancel</Text>
-                  </TouchableOpacity>
-                </ScrollView>
-              </Pressable>
-            </Pressable>
-          </KeyboardAvoidingView>
-        </Modal>
-      </>
+      <Modal visible={showActions} transparent animationType="fade">
+        <Pressable style={styles.modalOverlay} onPress={() => setShowActions(false)}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Unit actions</Text>
+            <TouchableOpacity style={styles.modalAction} onPress={handleMarkBlocked}>
+              <Text style={[styles.modalActionText, styles.modalActionDestructive]}>Mark blocked</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.modalAction} onPress={handleMarkNoAccess}>
+              <Text style={styles.modalActionText}>Mark no access</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.modalCancel} onPress={() => setShowActions(false)}>
+              <Text style={styles.modalCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Modal>
     );
   }
 
@@ -894,52 +662,11 @@ const styles = StyleSheet.create({
   captureInner: { width: 58, height: 58, borderRadius: 29, backgroundColor: colors.white },
   preview: { flex: 1, borderRadius: radius.md, marginBottom: 24 },
   modalOverlay: { flex: 1, backgroundColor: colors.overlay, justifyContent: "center" },
-  modalOverlayInner: { flex: 1, justifyContent: "center", padding: 24 },
   modalContent: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: 24, margin: 24 },
-  addModal: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: 24, maxHeight: "85%" },
   modalTitle: { fontSize: 20, fontWeight: "700", textAlign: "center", marginBottom: 16, color: colors.text },
   modalAction: { paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
   modalActionText: { fontSize: 16, color: colors.text, textAlign: "center" },
   modalActionDestructive: { color: colors.danger },
   modalCancel: { padding: 12, marginTop: 8 },
   modalCancelText: { textAlign: "center", color: colors.textSecondary, fontSize: 16 },
-  fieldLabel: { fontSize: 13, fontWeight: "600", color: colors.slate700, marginBottom: 6 },
-  fieldInput: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.sm,
-    padding: 12,
-    fontSize: 16,
-    marginBottom: 14,
-    backgroundColor: colors.surface,
-  },
-  fieldDisabled: { backgroundColor: colors.slate100, opacity: 0.8 },
-  filterSelect: { justifyContent: "center" },
-  filterSelectValue: { fontSize: 16, color: colors.text },
-  filterSelectPlaceholder: { fontSize: 16, color: colors.textMuted },
-  filterPickerList: {
-    marginTop: -10,
-    marginBottom: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.sm,
-    overflow: "hidden",
-    backgroundColor: colors.surface,
-  },
-  filterPickerOption: {
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
-  },
-  filterPickerOptionSelected: { backgroundColor: colors.primaryLight },
-  filterPickerOptionText: { fontSize: 16, color: colors.text },
-  modalSubmit: {
-    backgroundColor: colors.success,
-    padding: 16,
-    borderRadius: 10,
-    marginTop: 4,
-    marginBottom: 8,
-  },
-  modalSubmitText: { color: colors.white, fontSize: 16, fontWeight: "600", textAlign: "center" },
 });

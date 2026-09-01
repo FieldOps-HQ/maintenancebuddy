@@ -39,13 +39,11 @@ interface UnitTile {
 
 interface AddUnitForm {
   name: string;
-  location_notes: string;
   filter_size: string;
 }
 
 const emptyAddUnitForm: AddUnitForm = {
   name: "",
-  location_notes: "",
   filter_size: "",
 };
 
@@ -191,7 +189,6 @@ export default function SuiteUnitsScreen() {
 
     const parsed = technicianAddHvacUnitSchema.safeParse({
       name: addUnitForm.name.trim(),
-      location_notes: addUnitForm.location_notes.trim() || undefined,
       filter_size: addUnitForm.filter_size.trim() || undefined,
     });
 
@@ -339,21 +336,12 @@ export default function SuiteUnitsScreen() {
                 <Text style={styles.modalTitle}>Add HVAC Unit</Text>
                 <Text style={styles.modalSubtitle}>This unit will be added to the suite and this maintenance.</Text>
 
-                <Text style={styles.fieldLabel}>Unit name *</Text>
+                <Text style={styles.fieldLabel}>Unit location *</Text>
                 <TextInput
                   style={styles.fieldInput}
-                  placeholder="e.g. Server room"
+                  placeholder="e.g. Kitchen"
                   value={addUnitForm.name}
                   onChangeText={(name) => setAddUnitForm((f) => ({ ...f, name }))}
-                />
-
-                <Text style={styles.fieldLabel}>Location notes</Text>
-                <TextInput
-                  style={[styles.fieldInput, styles.fieldTextArea]}
-                  placeholder="Optional..."
-                  value={addUnitForm.location_notes}
-                  onChangeText={(location_notes) => setAddUnitForm((f) => ({ ...f, location_notes }))}
-                  multiline
                 />
 
                 <Text style={styles.fieldLabel}>Filter size</Text>
@@ -507,7 +495,6 @@ const styles = StyleSheet.create({
   },
   filterPickerOptionSelected: { backgroundColor: colors.primaryLight },
   filterPickerOptionText: { fontSize: 16, color: colors.text },
-  fieldTextArea: { minHeight: 72, textAlignVertical: "top" },
   modalButton: { padding: 16, borderRadius: 10, marginBottom: 10 },
   addSubmit: { backgroundColor: colors.success, marginTop: 4 },
   buttonDisabled: { opacity: 0.7 },
