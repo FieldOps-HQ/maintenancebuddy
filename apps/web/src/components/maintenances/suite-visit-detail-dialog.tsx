@@ -3,15 +3,25 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
-  SUITE_VISIT_STATUS_LABELS,
   DEFICIENCY_LABELS,
-  countCompletedUnitVisits,
-  type SuiteVisitStatus,
+  SUITE_VISIT_STATUS_LABELS,
   type DeficiencyCategory,
+  type SuiteVisitStatus,
 } from "@maintenancebuddy/shared";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatDate } from "@/lib/utils";
+import {
+  SUITE_VISIT_SELECT,
+  buildSuiteVisitStatusUpdates,
+  buildUnitVisitStatusUpdates,
+  mapSuiteVisitRow,
+} from "@/lib/suite-visit-mapper";
+import {
+  isLeavingCompletedStatus,
+  resetSuiteVisitCompletionData,
+} from "@/lib/reset-suite-visit-completion";
+import { VisitStatusEditor } from "@/components/maintenances/visit-status-editor";
 import { X } from "lucide-react";
 
 export interface UnitVisitDetailData {
@@ -123,16 +133,83 @@ function UnitPhoto({ unitVisit }: { unitVisit: UnitVisitDetailData }) {
   );
 }
 
+async function fetchSuiteVisit(suiteVisitId: string) {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("suite_visits")
+    .select(SUITE_VISIT_SELECT)
+    .eq("id", suiteVisitId)
+    .single();
+
+  if (error || !data) {
+    throw new Error(error?.message ?? "Could not refresh suite visit");
+  }
+
+  return mapSuiteVisitRow(data);
+}
+
 export function SuiteVisitDetailDialog({
   visit,
   onClose,
+  onVisitUpdated,
 }: {
   visit: SuiteVisitDetailData | null;
   onClose: () => void;
+  onVisitUpdated?: (visit: SuiteVisitDetailData) => void;
 }) {
-  if (!visit) return null;
+  const [visitData, setVisitData] = useState<SuiteVisitDetailData | null>(visit);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const { completed, total } = countCompletedUnitVisits(visit.unit_visits);
+  useEffect(() => {
+    setVisitData(visit);
+  }, [visit]);
+
+  if (!visitData) return null;
+
+  const total = visitData.unit_visits.length;
+
+  async function refreshVisit() {
+    setRefreshing(true);
+    try {
+      const refreshed = await fetchSuiteVisit(visitData!.id);
+      setVisitData(refreshed);
+      onVisitUpdated?.(refreshed);
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
+  async function handleSuiteStatusSave(status: SuiteVisitStatus, notes: string | null) {
+    const supabase = createClient();
+    const leavingCompleted = isLeavingCompletedStatus(visitData!.status, status);
+
+    if (leavingCompleted) {
+      await resetSuiteVisitCompletionData(supabase, visitData!.unit_visits);
+    }
+
+    const suiteUpdates = buildSuiteVisitStatusUpdates(status, notes);
+    const unitUpdates = buildUnitVisitStatusUpdates(status, notes, leavingCompleted);
+
+    const { error: suiteError } = await supabase
+      .from("suite_visits")
+      .update(suiteUpdates)
+      .eq("id", visitData!.id);
+
+    if (suiteError) {
+      throw new Error(suiteError.message);
+    }
+
+    const { error: unitsError } = await supabase
+      .from("hvac_unit_visits")
+      .update(unitUpdates)
+      .eq("suite_visit_id", visitData!.id);
+
+    if (unitsError) {
+      throw new Error(unitsError.message);
+    }
+
+    await refreshVisit();
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -140,8 +217,8 @@ export function SuiteVisitDetailDialog({
       <div className="relative z-10 max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl bg-white shadow-xl">
         <div className="flex items-center justify-between border-b border-zinc-200 p-6">
           <div>
-            <h2 className="text-xl font-bold">Suite {visit.suite_number}</h2>
-            {visit.floor && <p className="text-sm text-zinc-500">Floor {visit.floor}</p>}
+            <h2 className="text-xl font-bold">Suite {visitData.suite_number}</h2>
+            {visitData.floor && <p className="text-sm text-zinc-500">Floor {visitData.floor}</p>}
           </div>
           <Button variant="ghost" size="icon" onClick={onClose}>
             <X className="h-5 w-5" />
@@ -149,33 +226,37 @@ export function SuiteVisitDetailDialog({
         </div>
 
         <div className="space-y-6 p-6">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm text-zinc-500">Status</span>
-            <Badge variant="secondary">{SUITE_VISIT_STATUS_LABELS[visit.status]}</Badge>
-            {total > 0 && (
-              <span className="text-sm text-zinc-500">
-                {total} unit{total === 1 ? "" : "s"} · {completed} complete
-              </span>
-            )}
-          </div>
+          <VisitStatusEditor
+            label="Status"
+            status={visitData.status}
+            notes={visitData.notes}
+            disabled={refreshing}
+            onSave={handleSuiteStatusSave}
+          />
 
-          {visit.visited_at && (
+          {total > 1 && (
+            <p className="text-sm text-zinc-500">
+              Applies to all {total} units in this suite
+            </p>
+          )}
+
+          {visitData.visited_at && (
             <div className="text-sm">
               <span className="text-zinc-500">Visited: </span>
-              {formatDate(visit.visited_at)}
+              {formatDate(visitData.visited_at)}
             </div>
           )}
 
-          {visit.notes && (
+          {visitData.notes && (
             <div>
               <p className="mb-1 text-sm font-medium text-zinc-500">
-                {visit.status === "blocked_unit" || visit.status === "no_access" ? "Reason" : "Notes"}
+                {visitData.status === "blocked_unit" || visitData.status === "no_access" ? "Reason" : "Notes"}
               </p>
-              <p className="text-sm">{visit.notes}</p>
+              <p className="text-sm">{visitData.notes}</p>
             </div>
           )}
 
-          {visit.unit_visits.map((unitVisit) => (
+          {visitData.unit_visits.map((unitVisit) => (
             <div key={unitVisit.id} className="space-y-4 rounded-lg border border-zinc-100 p-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="font-medium">{unitVisit.unit_name}</p>

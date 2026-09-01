@@ -10,73 +10,8 @@ import { Input } from "@/components/ui/input";
 import {
   SuiteVisitDetailDialog,
   type SuiteVisitDetailData,
-  type UnitVisitDetailData,
 } from "@/components/maintenances/suite-visit-detail-dialog";
-
-function mapVisitRow(v: {
-  id: string;
-  status: string;
-  visited_at: string | null;
-  notes: string | null;
-  suite: {
-    suite_number: string;
-    floor: string | null;
-  } | null;
-  hvac_unit_visits?: {
-    id: string;
-    status: string;
-    cleaned: boolean | null;
-    filter_changed: boolean | null;
-    operating_normally: boolean | null;
-    visited_at: string | null;
-    notes: string | null;
-    hvac_unit: {
-      name: string;
-      filter_size: string | null;
-      filter_quantity: number | null;
-    } | null;
-    deficiencies?: { id: string; category: string; description: string }[];
-    visit_photos?: { id: string; storage_path: string }[];
-  }[];
-}): SuiteVisitDetailData {
-  const unitVisits: UnitVisitDetailData[] = (v.hvac_unit_visits ?? []).map((uv) => ({
-    id: uv.id,
-    status: uv.status as SuiteVisitStatus,
-    cleaned: uv.cleaned,
-    filter_changed: uv.filter_changed,
-    operating_normally: uv.operating_normally,
-    visited_at: uv.visited_at,
-    notes: uv.notes,
-    unit_name: uv.hvac_unit?.name ?? "Unit",
-    filter_size: uv.hvac_unit?.filter_size ?? null,
-    filter_quantity: uv.hvac_unit?.filter_quantity ?? null,
-    deficiencies: uv.deficiencies ?? [],
-    photos: uv.visit_photos ?? [],
-  }));
-
-  return {
-    id: v.id,
-    status: v.status as SuiteVisitStatus,
-    suite_number: v.suite?.suite_number ?? "",
-    floor: v.suite?.floor ?? null,
-    visited_at: v.visited_at,
-    notes: v.notes,
-    unit_visits: unitVisits,
-  };
-}
-
-const UNIT_VISIT_SELECT = `
-  id,
-  status,
-  cleaned,
-  filter_changed,
-  operating_normally,
-  visited_at,
-  notes,
-  hvac_unit:hvac_units(name, filter_size, filter_quantity),
-  deficiencies:deficiencies!deficiencies_hvac_unit_visit_id_fkey(id, category, description),
-  visit_photos:visit_photos!visit_photos_hvac_unit_visit_id_fkey(id, storage_path)
-`;
+import { SUITE_VISIT_SELECT, mapSuiteVisitRow } from "@/lib/suite-visit-mapper";
 
 export function MaintenanceProgress({
   maintenanceId,
@@ -102,18 +37,11 @@ export function MaintenanceProgress({
     const supabase = createClient();
     const { data } = await supabase
       .from("suite_visits")
-      .select(`
-        id,
-        status,
-        visited_at,
-        notes,
-        suite:suites(suite_number, floor),
-        hvac_unit_visits(${UNIT_VISIT_SELECT})
-      `)
+      .select(SUITE_VISIT_SELECT)
       .eq("maintenance_id", maintenanceId);
 
     if (data) {
-      setVisits(data.map(mapVisitRow));
+      setVisits(data.map(mapSuiteVisitRow));
     }
   }, [maintenanceId]);
 
@@ -231,7 +159,14 @@ export function MaintenanceProgress({
         </CardContent>
       </Card>
 
-      <SuiteVisitDetailDialog visit={selectedVisit} onClose={() => setSelectedVisit(null)} />
+      <SuiteVisitDetailDialog
+        visit={selectedVisit}
+        onClose={() => setSelectedVisit(null)}
+        onVisitUpdated={(updated) => {
+          setVisits((current) => current.map((visit) => (visit.id === updated.id ? updated : visit)));
+          setSelectedVisit(updated);
+        }}
+      />
     </>
   );
 }
