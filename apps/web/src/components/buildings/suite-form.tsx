@@ -5,11 +5,10 @@ import { useRouter } from "next/navigation";
 import { formatFilterSize, formatFilterSizeLabel } from "@maintenancebuddy/shared";
 import type { Suite, HvacUnit } from "@maintenancebuddy/shared";
 import { createClient } from "@/lib/supabase/client";
-import { Pencil, Trash2 } from "lucide-react";
+import { ChevronRight, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -80,55 +79,21 @@ function defaultUnitLocation(value: string) {
   return value.trim() || "Main";
 }
 
-type DisplayRow = {
-  suite: SuiteWithUnits;
-  unit: HvacUnit | null;
-  unitIndex: number;
-  unitCount: number;
-  isMultiUnit: boolean;
-  isFirstInGroup: boolean;
-  isLastInGroup: boolean;
-};
-
-function buildDisplayRows(suites: SuiteWithUnits[]): DisplayRow[] {
-  return suites.flatMap((suite) => {
-    const units = (suite.hvac_units ?? []).sort(
-      (a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name)
-    );
-    const rows: (HvacUnit | null)[] = units.length === 0 ? [null] : units;
-    const unitCount = rows.length;
-    const isMultiUnit = unitCount > 1;
-
-    return rows.map((unit, unitIndex) => ({
-      suite,
-      unit,
-      unitIndex,
-      unitCount,
-      isMultiUnit,
-      isFirstInGroup: unitIndex === 0,
-      isLastInGroup: unitIndex === unitCount - 1,
-    }));
-  });
-}
-
-function multiUnitRowClass(row: Pick<DisplayRow, "isMultiUnit" | "isFirstInGroup" | "isLastInGroup">) {
-  if (!row.isMultiUnit) {
-    return "border-b border-slate-200 bg-white hover:bg-slate-50/80";
-  }
-
-  return cn(
-    "border-b border-violet-100 bg-violet-50/70 hover:bg-violet-50",
-    row.isFirstInGroup && "border-t-2 border-t-violet-300",
-    row.isLastInGroup && "border-b-2 border-b-violet-300"
+function getSortedUnits(suite: SuiteWithUnits): HvacUnit[] {
+  return (suite.hvac_units ?? []).sort(
+    (a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name)
   );
 }
 
-function suiteCellClass(row: Pick<DisplayRow, "isMultiUnit" | "isFirstInGroup">) {
-  return cn(
-    "border-r border-slate-200 px-2 py-1.5",
-    row.isMultiUnit && "border-l-4",
-    row.isMultiUnit && (row.isFirstInGroup ? "border-l-violet-500" : "border-l-violet-300")
-  );
+function summarizeUnits(units: HvacUnit[]) {
+  return units.map((unit) => unit.name).join(", ");
+}
+
+function summarizeFilterSizes(units: HvacUnit[], suite: SuiteWithUnits) {
+  const sizes = [...new Set(units.map((unit) => unit.filter_size).filter(Boolean))];
+  if (sizes.length === 1) return sizes[0]!;
+  if (sizes.length > 1) return "Mixed sizes";
+  return suite.filter_size ?? "—";
 }
 
 function normalizeName(value: string) {
@@ -208,7 +173,7 @@ function RowIconButton({
   children,
 }: {
   label: string;
-  onClick: () => void;
+  onClick: (e: React.MouseEvent<HTMLButtonElement>) => void;
   disabled?: boolean;
   destructive?: boolean;
   children: React.ReactNode;
@@ -233,26 +198,20 @@ function RowIconButton({
 
 type ResolveFilterSize = (input: string) => string | null;
 
-function ExistingSuiteUnitRow({
+function ExistingUnitRow({
   suite,
   unit,
   suites,
   filterSizes,
   resolveFilterSize,
-  unitCount,
-  isMultiUnit,
-  isFirstInGroup,
-  isLastInGroup,
+  nested = false,
 }: {
   suite: SuiteWithUnits;
   unit: HvacUnit | null;
   suites: SuiteWithUnits[];
   filterSizes: FilterSizeOption[];
   resolveFilterSize: ResolveFilterSize;
-  unitCount: number;
-  isMultiUnit: boolean;
-  isFirstInGroup: boolean;
-  isLastInGroup: boolean;
+  nested?: boolean;
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
@@ -319,7 +278,7 @@ function ExistingSuiteUnitRow({
 
     const supabase = createClient();
 
-    if (suiteNumber !== suite.suite_number) {
+    if (!nested && suiteNumber !== suite.suite_number) {
       const { error: suiteError } = await supabase
         .from("suites")
         .update({ suite_number: suiteNumber })
@@ -432,19 +391,21 @@ function ExistingSuiteUnitRow({
     setLoading(false);
   }
 
-  const groupProps = { isMultiUnit, isFirstInGroup, isLastInGroup };
-
   if (editing) {
     return (
       <>
-        <TableRow className={cn("group", multiUnitRowClass(groupProps), "bg-amber-50/40 hover:bg-amber-50/60")}>
-          <TableCell className={cn(suiteCellClass(groupProps), "p-0")}>
-            <Input
-              value={values.suite_number}
-              onChange={(e) => setValues((v) => ({ ...v, suite_number: e.target.value }))}
-              className={cellInputClass}
-              disabled={loading}
-            />
+        <TableRow className="group border-b border-slate-200 bg-amber-50/40 hover:bg-amber-50/60">
+          <TableCell className={cn("border-r border-slate-200 p-0", nested && "px-2 py-1.5")}>
+            {nested ? (
+              <span className="pl-6 font-sans text-xs text-slate-500">↳</span>
+            ) : (
+              <Input
+                value={values.suite_number}
+                onChange={(e) => setValues((v) => ({ ...v, suite_number: e.target.value }))}
+                className={cellInputClass}
+                disabled={loading}
+              />
+            )}
           </TableCell>
           <TableCell className="border-r border-slate-200 p-0">
             <FilterSizeSelect
@@ -500,25 +461,14 @@ function ExistingSuiteUnitRow({
 
   return (
     <>
-      <TableRow className={cn("group", multiUnitRowClass(groupProps))}>
-        <TableCell className={cn(suiteCellClass(groupProps), "text-slate-900")}>
-          {isFirstInGroup ? (
-            <div className="flex items-center gap-2">
-              <span>{suite.suite_number}</span>
-              {isMultiUnit && (
-                <Badge
-                  variant="secondary"
-                  className="border-violet-200 bg-violet-100 font-sans text-[10px] font-medium text-violet-800"
-                >
-                  {unitCount} units
-                </Badge>
-              )}
-            </div>
-          ) : (
-            <span aria-hidden className="pl-3 font-sans text-violet-400">
-              ↳
-            </span>
+      <TableRow className="group border-b border-slate-200 bg-white hover:bg-slate-50/80">
+        <TableCell
+          className={cn(
+            "border-r border-slate-200 px-2 py-1.5 text-slate-900",
+            nested && "pl-8 font-sans text-xs text-slate-500"
           )}
+        >
+          {nested ? "↳" : suite.suite_number}
         </TableCell>
         <TableCell className="border-r border-slate-200 px-2 py-1.5 text-slate-700">
           {unit?.filter_size ?? suite.filter_size ?? ""}
@@ -534,14 +484,23 @@ function ExistingSuiteUnitRow({
             <RowIconButton
               label="Edit row"
               disabled={loading}
-              onClick={() => {
+              onClick={(e) => {
+                e.stopPropagation();
                 resetValues();
                 setEditing(true);
               }}
             >
               <Pencil className="h-3.5 w-3.5" />
             </RowIconButton>
-            <RowIconButton label="Delete row" destructive disabled={loading} onClick={handleDelete}>
+            <RowIconButton
+              label="Delete row"
+              destructive
+              disabled={loading}
+              onClick={(e) => {
+                e.stopPropagation();
+                void handleDelete();
+              }}
+            >
               <Trash2 className="h-3.5 w-3.5" />
             </RowIconButton>
           </div>
@@ -557,6 +516,77 @@ function ExistingSuiteUnitRow({
           </TableCell>
         </TableRow>
       )}
+    </>
+  );
+}
+
+function ExistingSuiteRow({
+  suite,
+  suites,
+  filterSizes,
+  resolveFilterSize,
+  expanded,
+  onToggle,
+}: {
+  suite: SuiteWithUnits;
+  suites: SuiteWithUnits[];
+  filterSizes: FilterSizeOption[];
+  resolveFilterSize: ResolveFilterSize;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  const units = getSortedUnits(suite);
+  const isMultiUnit = units.length > 1;
+
+  if (!isMultiUnit) {
+    return (
+      <ExistingUnitRow
+        suite={suite}
+        unit={units[0] ?? null}
+        suites={suites}
+        filterSizes={filterSizes}
+        resolveFilterSize={resolveFilterSize}
+      />
+    );
+  }
+
+  return (
+    <>
+      <TableRow
+        className="cursor-pointer border-b border-slate-200 bg-slate-50/80 hover:bg-slate-100/80"
+        onClick={onToggle}
+      >
+        <TableCell className="border-r border-slate-200 px-2 py-1.5 text-slate-900">
+          <div className="flex items-center gap-2">
+            <ChevronRight
+              className={cn(
+                "h-4 w-4 shrink-0 text-slate-400 transition-transform",
+                expanded && "rotate-90"
+              )}
+            />
+            <span>{suite.suite_number}</span>
+            <span className="font-sans text-xs text-slate-500">{units.length} units</span>
+          </div>
+        </TableCell>
+        <TableCell className="border-r border-slate-200 px-2 py-1.5 font-sans text-xs text-slate-600">
+          {summarizeFilterSizes(units, suite)}
+        </TableCell>
+        <TableCell className="border-r border-slate-200 px-2 py-1.5 font-sans text-xs text-slate-600">
+          {expanded ? "—" : summarizeUnits(units)}
+        </TableCell>
+      </TableRow>
+      {expanded &&
+        units.map((unit) => (
+          <ExistingUnitRow
+            key={unit.id}
+            suite={suite}
+            unit={unit}
+            suites={suites}
+            filterSizes={filterSizes}
+            resolveFilterSize={resolveFilterSize}
+            nested
+          />
+        ))}
     </>
   );
 }
@@ -577,6 +607,7 @@ export function SuitesSpreadsheet({
   const [lastFilterSize, setLastFilterSize] = useState("");
   const [draftRows, setDraftRows] = useState<DraftRow[]>(() => [makeDraftRow()]);
   const [focusedCell, setFocusedCell] = useState<CellFocus | null>(null);
+  const [expandedSuiteIds, setExpandedSuiteIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const stored =
@@ -598,8 +629,14 @@ export function SuitesSpreadsheet({
     }
   }
 
-  const displayRows = buildDisplayRows(suites);
-  const multiUnitSuiteCount = suites.filter((s) => (s.hvac_units ?? []).length > 1).length;
+  function toggleSuiteExpanded(suiteId: string) {
+    setExpandedSuiteIds((current) => {
+      const next = new Set(current);
+      if (next.has(suiteId)) next.delete(suiteId);
+      else next.add(suiteId);
+      return next;
+    });
+  }
 
   const resolveFilterSize = useCallback(
     (input: string): string | null => {
@@ -801,6 +838,20 @@ export function SuitesSpreadsheet({
     }
 
     rememberFilterSize(lastCreatedFilter);
+
+    const expandedSuiteNumbers = new Set(
+      filledRows.map((row) => row.suite_number.trim()).filter(Boolean)
+    );
+    setExpandedSuiteIds((current) => {
+      const next = new Set(current);
+      for (const suite of suites) {
+        if (expandedSuiteNumbers.has(suite.suite_number)) {
+          next.add(suite.id);
+        }
+      }
+      return next;
+    });
+
     resetDraftRows();
     router.refresh();
     setLoading(false);
@@ -872,8 +923,8 @@ export function SuitesSpreadsheet({
       <CardHeader className="shrink-0 space-y-1 pb-3">
         <CardTitle>Suites ({suites.length})</CardTitle>
         <CardDescription>
-          Add units in the highlighted row below. Violet bands group suites with multiple units
-          {multiUnitSuiteCount > 0 ? ` (${multiUnitSuiteCount})` : ""}. Hover a row to edit or delete.
+          Add units in the highlighted row below. Suites with multiple units collapse into one
+          expandable row. Hover a row to edit or delete.
         </CardDescription>
         {filterSizes.length === 0 && (
           <p className="font-sans text-sm text-slate-500">
@@ -958,22 +1009,19 @@ export function SuitesSpreadsheet({
                   </TableRow>
                 ))}
 
-                {displayRows.map((row) => (
-                  <ExistingSuiteUnitRow
-                    key={row.unit ? `${row.suite.id}-${row.unit.id}` : row.suite.id}
-                    suite={row.suite}
-                    unit={row.unit}
+                {suites.map((suite) => (
+                  <ExistingSuiteRow
+                    key={suite.id}
+                    suite={suite}
                     suites={suites}
                     filterSizes={filterSizes}
                     resolveFilterSize={resolveFilterSize}
-                    unitCount={row.unitCount}
-                    isMultiUnit={row.isMultiUnit}
-                    isFirstInGroup={row.isFirstInGroup}
-                    isLastInGroup={row.isLastInGroup}
+                    expanded={expandedSuiteIds.has(suite.id)}
+                    onToggle={() => toggleSuiteExpanded(suite.id)}
                   />
                 ))}
 
-                {displayRows.length === 0 && draftRows.every((r) => !r.suite_number.trim()) && (
+                {suites.length === 0 && draftRows.every((r) => !r.suite_number.trim()) && (
                   <TableRow className="hover:bg-transparent">
                     <TableCell colSpan={3} className="py-8 text-center font-sans text-sm text-slate-500">
                       No suites yet. Add a unit using the row above.
