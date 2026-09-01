@@ -1,5 +1,12 @@
 import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
-import { SUITE_VISIT_STATUS_LABELS, formatBuildingAddress } from "@maintenancebuddy/shared";
+import {
+  SUITE_VISIT_STATUS_LABELS,
+  formatBuildingAddress,
+  getSuiteVisitRollupStatus,
+  isUnitVisitDone,
+  type SuiteVisitStatus,
+} from "@maintenancebuddy/shared";
+import { collectVisitIssues } from "@/lib/visit-issues";
 
 const styles = StyleSheet.create({
   page: { padding: 40, fontSize: 10, fontFamily: "Helvetica" },
@@ -45,12 +52,14 @@ interface ReportProps {
       status: string;
       suite: { suite_number: string } | null;
       hvac_unit_visits: {
+        id: string;
         status: string;
+        notes: string | null;
         cleaned: boolean | null;
         filter_changed: boolean | null;
         operating_normally: boolean | null;
         hvac_unit: { name: string } | null;
-        deficiencies: { category: string; description: string }[];
+        deficiencies: { id: string; category: string; description: string }[];
       }[];
     }[];
   };
@@ -76,11 +85,15 @@ function buildUnitRows(maintenance: ReportProps["maintenance"]): ReportUnitRow[]
       continue;
     }
 
+    const suiteStatus = getSuiteVisitRollupStatus(
+      unitVisits.map((unitVisit) => ({ status: unitVisit.status as SuiteVisitStatus }))
+    );
+
     for (const uv of unitVisits) {
       rows.push({
         suite_number: visit.suite?.suite_number ?? "",
         unit_name: uv.hvac_unit?.name ?? "Unit",
-        suite_status: visit.status,
+        suite_status: suiteStatus,
         unit_status: uv.status,
         cleaned: uv.cleaned,
         filter_changed: uv.filter_changed,
@@ -98,9 +111,18 @@ function buildUnitRows(maintenance: ReportProps["maintenance"]): ReportUnitRow[]
 
 export function MaintenanceReportDocument({ maintenance, filterSummary }: ReportProps) {
   const visits = maintenance.suite_visits ?? [];
-  const completed = visits.filter((v) => v.status === "completed").length;
+  const completed = visits.filter((visit) => {
+    const unitVisits = visit.hvac_unit_visits ?? [];
+    return (
+      unitVisits.length > 0 &&
+      unitVisits.every((unitVisit) => isUnitVisitDone(unitVisit.status as SuiteVisitStatus))
+    );
+  }).length;
   const techs = maintenance.assignments?.map((a) => a.technician?.full_name).filter(Boolean).join(", ");
   const unitRows = buildUnitRows(maintenance);
+  const issues = collectVisitIssues(visits);
+  const incompleteReasons = issues.filter((issue) => issue.key.startsWith("unit-"));
+  const deficiencies = issues.filter((issue) => issue.key.startsWith("deficiency-"));
 
   return (
     <Document>
@@ -154,21 +176,37 @@ export function MaintenanceReportDocument({ maintenance, filterSummary }: Report
           ))}
         </View>
 
-        {unitRows.some((r) => r.deficiencies.length > 0) && (
+        {incompleteReasons.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Incomplete Visit Reasons</Text>
+            {incompleteReasons.map((issue) => (
+              <View key={issue.key} style={{ marginBottom: 8 }}>
+                <Text style={{ fontWeight: "bold" }}>
+                  Suite {issue.suiteNumber}
+                  {issue.unitName ? ` — ${issue.unitName}` : ""}
+                </Text>
+                <Text>
+                  {issue.statusLabel}: {issue.reason}
+                </Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {deficiencies.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Deficiencies</Text>
-            {unitRows
-              .filter((r) => r.deficiencies.length > 0)
-              .map((r, i) => (
-                <View key={i}>
-                  <Text style={{ fontWeight: "bold" }}>
-                    Suite {r.suite_number} — {r.unit_name}
-                  </Text>
-                  {r.deficiencies.map((d, j) => (
-                    <Text key={j}>  • {d.description}</Text>
-                  ))}
-                </View>
-              ))}
+            {deficiencies.map((issue) => (
+              <View key={issue.key} style={{ marginBottom: 8 }}>
+                <Text style={{ fontWeight: "bold" }}>
+                  Suite {issue.suiteNumber}
+                  {issue.unitName ? ` — ${issue.unitName}` : ""}
+                </Text>
+                <Text>
+                  {issue.statusLabel}: {issue.reason}
+                </Text>
+              </View>
+            ))}
           </View>
         )}
       </Page>
