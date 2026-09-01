@@ -13,6 +13,7 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Linking,
 } from "react-native";
 import { useLocalSearchParams, router, useFocusEffect } from "expo-router";
 import {
@@ -49,6 +50,14 @@ interface FilterSizeOption {
   thickness_in: number;
 }
 
+interface BuildingContact {
+  id: string;
+  name: string;
+  role: string | null;
+  phone: string | null;
+  email: string | null;
+}
+
 interface AddUnitForm {
   suite_number: string;
   filter_size: string;
@@ -74,6 +83,8 @@ export default function SuiteGridScreen() {
   const [pendingSync, setPendingSync] = useState(0);
   const [filterSizes, setFilterSizes] = useState<FilterSizeOption[]>([]);
   const [filterPickerOpen, setFilterPickerOpen] = useState(false);
+  const [contacts, setContacts] = useState<BuildingContact[]>([]);
+  const [showContacts, setShowContacts] = useState(false);
 
   const loadData = useCallback(async () => {
     if (!maintenanceId) return;
@@ -81,7 +92,13 @@ export default function SuiteGridScreen() {
     const [{ data: maintenance }, { data: visitData }, { data: sizes }] = await Promise.all([
       supabase
         .from("maintenances")
-        .select("building_id, building:buildings(name)")
+        .select(`
+          building_id,
+          building:buildings(
+            name,
+            building_contacts(id, name, role, phone, email)
+          )
+        `)
         .eq("id", maintenanceId)
         .single(),
       supabase
@@ -101,6 +118,10 @@ export default function SuiteGridScreen() {
     setFilterSizes(sizes ?? []);
     setBuildingName(maintenance?.building?.name ?? "");
     setBuildingId(maintenance?.building_id ?? "");
+    const buildingContacts = maintenance?.building?.building_contacts ?? [];
+    setContacts(
+      [...buildingContacts].sort((a, b) => a.name.localeCompare(b.name))
+    );
     setVisits(
       (visitData ?? []).map((v: {
         id: string;
@@ -356,9 +377,16 @@ export default function SuiteGridScreen() {
         {pendingSync > 0 && (
           <Text style={styles.syncBadge}>{pendingSync} pending sync</Text>
         )}
-        <TouchableOpacity style={styles.addButton} onPress={() => openAddUnitModal()}>
-          <Text style={styles.addButtonText}>+ Add unit</Text>
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity style={styles.secondaryButton} onPress={() => setShowContacts(true)}>
+            <Text style={styles.secondaryButtonText}>
+              Contacts{contacts.length > 0 ? ` (${contacts.length})` : ""}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.addButton} onPress={() => openAddUnitModal()}>
+            <Text style={styles.addButtonText}>+ Add unit</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <TextInput
@@ -439,6 +467,40 @@ export default function SuiteGridScreen() {
               <Text style={styles.modalCancelText}>Cancel</Text>
             </TouchableOpacity>
           </View>
+        </Pressable>
+      </Modal>
+
+      <Modal visible={showContacts} transparent animationType="slide">
+        <Pressable style={styles.modalOverlay} onPress={() => setShowContacts(false)}>
+          <Pressable style={styles.contactsModal} onPress={(e) => e.stopPropagation()}>
+            <Text style={styles.modalTitle}>Building contacts</Text>
+            <Text style={styles.modalSubtitle}>{buildingName}</Text>
+            <ScrollView style={styles.contactsList}>
+              {contacts.length === 0 ? (
+                <Text style={styles.contactsEmpty}>No contacts on file for this building.</Text>
+              ) : (
+                contacts.map((contact) => (
+                  <View key={contact.id} style={styles.contactCard}>
+                    <Text style={styles.contactName}>{contact.name}</Text>
+                    {contact.role ? <Text style={styles.contactRole}>{contact.role}</Text> : null}
+                    {contact.phone ? (
+                      <TouchableOpacity onPress={() => Linking.openURL(`tel:${contact.phone}`)}>
+                        <Text style={styles.contactLink}>{contact.phone}</Text>
+                      </TouchableOpacity>
+                    ) : null}
+                    {contact.email ? (
+                      <TouchableOpacity onPress={() => Linking.openURL(`mailto:${contact.email}`)}>
+                        <Text style={styles.contactLink}>{contact.email}</Text>
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
+                ))
+              )}
+            </ScrollView>
+            <TouchableOpacity style={styles.modalCancel} onPress={() => setShowContacts(false)}>
+              <Text style={styles.modalCancelText}>Close</Text>
+            </TouchableOpacity>
+          </Pressable>
         </Pressable>
       </Modal>
 
@@ -548,9 +610,17 @@ const styles = StyleSheet.create({
   title: { fontSize: 20, fontWeight: "700", color: colors.text },
   progress: { fontSize: 14, color: colors.textSecondary, marginTop: 4 },
   syncBadge: { fontSize: 12, color: colors.warning, marginTop: 4 },
+  headerActions: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 12 },
+  secondaryButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  secondaryButtonText: { color: colors.primary, fontSize: 14, fontWeight: "600" },
   addButton: {
-    marginTop: 12,
-    alignSelf: "flex-start",
     backgroundColor: colors.primary,
     paddingHorizontal: 14,
     paddingVertical: 8,
@@ -651,4 +721,24 @@ const styles = StyleSheet.create({
   modalButtonText: { color: colors.white, fontSize: 16, fontWeight: "600", textAlign: "center" },
   modalCancel: { padding: 12, marginTop: 4 },
   modalCancelText: { textAlign: "center", color: colors.textSecondary, fontSize: 16 },
+  contactsModal: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: 24,
+    margin: 24,
+    maxHeight: "80%",
+  },
+  contactsList: { maxHeight: 360, marginBottom: 8 },
+  contactsEmpty: { textAlign: "center", color: colors.textSecondary, fontSize: 14, paddingVertical: 24 },
+  contactCard: {
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    borderRadius: radius.md,
+    padding: 14,
+    marginBottom: 10,
+    backgroundColor: colors.slate100,
+  },
+  contactName: { fontSize: 16, fontWeight: "600", color: colors.text },
+  contactRole: { fontSize: 14, color: colors.textSecondary, marginTop: 2 },
+  contactLink: { fontSize: 14, color: colors.primary, marginTop: 6 },
 });
