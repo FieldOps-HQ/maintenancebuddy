@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { formatFilterSize, formatFilterSizeLabel } from "@maintenancebuddy/shared";
 import type { Suite, HvacUnit } from "@maintenancebuddy/shared";
 import { createClient } from "@/lib/supabase/client";
+import { SuiteImportDialog } from "@/components/buildings/suite-import-dialog";
 import { ChevronRight, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -109,7 +110,7 @@ function parsePasteRows(text: string): Omit<DraftRow, "id">[] {
       return {
         suite_number: (cells[0] ?? "").trim(),
         filter_size: (cells[1] ?? "").trim(),
-        unit_location: (cells[2] ?? "").trim(),
+        unit_location: defaultUnitLocation((cells[2] ?? "").trim()),
       };
     })
     .filter((row) => row.suite_number || row.filter_size || row.unit_location);
@@ -795,6 +796,7 @@ export function SuitesSpreadsheet({
   const [focusedCell, setFocusedCell] = useState<CellFocus | null>(null);
   const [expandedSuiteIds, setExpandedSuiteIds] = useState<Set<string>>(new Set());
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
+  const [importOpen, setImportOpen] = useState(false);
 
   const selectableKeys = getSelectableKeys(suites);
   const selectedCount = selectableKeys.filter((key) => selectedKeys.has(key)).length;
@@ -1140,13 +1142,18 @@ export function SuitesSpreadsheet({
     (row) => row.suite_number.trim() || row.filter_size.trim() || row.unit_location.trim()
   ).length;
 
+  const existingSuitesForImport = suites.map((suite) => ({
+    suite_number: suite.suite_number,
+    units: (suite.hvac_units ?? []).map((unit) => ({ name: unit.name })),
+  }));
+
   return (
     <Card className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <CardHeader className="shrink-0 space-y-1 pb-3">
         <CardTitle>Suites ({suites.length})</CardTitle>
         <CardDescription>
-          Add units in the highlighted row below. Select rows to delete in bulk, or hover a row to
-          edit or delete individually.
+          Add units one at a time below, or use Import from spreadsheet for 20+ rows. Select rows to
+          delete in bulk, or hover a row to edit or delete individually.
         </CardDescription>
         {filterSizes.length === 0 && (
           <p className="font-sans text-sm text-slate-500">
@@ -1165,19 +1172,31 @@ export function SuitesSpreadsheet({
               <p className="text-sm font-medium text-sky-900">New unit</p>
               <p className="text-xs text-sky-700/80">Fill the row below, then press Enter or Add unit</p>
             </div>
-            <Button
-              type="button"
-              size="sm"
-              disabled={loading || filterSizes.length === 0}
-              onClick={() => void handleCreate()}
-              className="shrink-0"
-            >
-              {loading
-                ? "Adding..."
-                : filledDraftCount > 1
-                  ? `Add ${filledDraftCount} units`
-                  : "Add unit"}
-            </Button>
+            <div className="flex shrink-0 gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={loading || filterSizes.length === 0}
+                onClick={() => setImportOpen(true)}
+                className="shrink-0"
+              >
+                Import from spreadsheet
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                disabled={loading || filterSizes.length === 0}
+                onClick={() => void handleCreate()}
+                className="shrink-0"
+              >
+                {loading
+                  ? "Adding..."
+                  : filledDraftCount > 1
+                    ? `Add ${filledDraftCount} units`
+                    : "Add unit"}
+              </Button>
+            </div>
           </div>
           {error && (
             <p className="shrink-0 border-b border-red-100 bg-red-50 px-3 py-2 font-sans text-sm text-red-600">
@@ -1295,6 +1314,15 @@ export function SuitesSpreadsheet({
           </div>
         </div>
       </CardContent>
+
+      <SuiteImportDialog
+        buildingId={buildingId}
+        filterSizes={filterSizes}
+        existingSuites={existingSuitesForImport}
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onImported={() => router.refresh()}
+      />
     </Card>
   );
 }
