@@ -24,6 +24,7 @@ import { supabase } from "@/lib/supabase";
 import { addToOutbox, getDeficienciesFromAnswers } from "@/lib/outbox";
 import { uploadVisitPhoto } from "@/lib/upload-photo";
 import { colors, radius } from "@/lib/theme";
+import { ScreenHeader } from "@/components/screen-header";
 import * as FileSystem from "expo-file-system/legacy";
 
 type AnswerKey = "cleaned" | "filter_changed" | "operating_normally";
@@ -208,16 +209,23 @@ export default function WizardScreen() {
     ]);
   }
 
-  function TopBar({ onBack }: { onBack: () => void }) {
+  function WizardHeader({ onBack }: { onBack: () => void }) {
     return (
-      <View style={styles.topBar}>
-        <TouchableOpacity onPress={onBack}>
-          <Text style={styles.backText}>← {step > 0 ? "Back" : "Cancel"}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.actionsButton} onPress={() => setShowActions(true)}>
-          <Text style={styles.actionsText}>⋯</Text>
-        </TouchableOpacity>
-      </View>
+      <ScreenHeader
+        title={`Suite ${suiteNumber}`}
+        subtitle={`${unitName}${isEditing ? " · Editing" : ""}`}
+        showBack
+        onBack={onBack}
+        rightAction={
+          <TouchableOpacity
+            style={styles.actionsButton}
+            onPress={() => setShowActions(true)}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Text style={styles.actionsText}>⋯</Text>
+          </TouchableOpacity>
+        }
+      />
     );
   }
 
@@ -431,7 +439,7 @@ export default function WizardScreen() {
 
   if (loadingVisit) {
     return (
-      <View style={[styles.container, styles.centered]}>
+      <View style={[styles.screen, styles.centered]}>
         <ActivityIndicator size="large" color={colors.primary} />
         <Text style={styles.loadingText}>Loading visit...</Text>
       </View>
@@ -441,11 +449,14 @@ export default function WizardScreen() {
   if (showCamera) {
     if (!permission?.granted) {
       return (
-        <View style={styles.container}>
-          <Text style={styles.question}>Camera permission needed</Text>
-          <TouchableOpacity style={styles.yesButton} onPress={requestPermission}>
-            <Text style={styles.buttonText}>Grant Permission</Text>
-          </TouchableOpacity>
+        <View style={styles.screen}>
+          <WizardHeader onBack={() => setShowCamera(false)} />
+          <View style={[styles.content, styles.centered]}>
+            <Text style={styles.question}>Camera permission needed</Text>
+            <TouchableOpacity style={styles.yesButton} onPress={requestPermission}>
+              <Text style={styles.buttonText}>Grant Permission</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       );
     }
@@ -465,14 +476,14 @@ export default function WizardScreen() {
   if (step === 3 && photoUri) {
     return (
       <>
-        <View style={styles.container}>
-          <TopBar onBack={() => router.back()} />
-          <Text style={styles.suiteLabel}>Suite {suiteNumber} · {unitName}</Text>
-          <Text style={styles.stepIndicator}>Step 4 of 4</Text>
-          <Text style={styles.stepTitle}>Photo</Text>
-          <Text style={styles.question}>Photo Preview</Text>
-          <Image source={{ uri: photoUri }} style={styles.preview} />
-          <View style={styles.buttonRow}>
+        <View style={styles.screen}>
+          <WizardHeader onBack={() => router.back()} />
+          <View style={styles.content}>
+            <Text style={styles.stepIndicator}>Step 4 of 4</Text>
+            <Text style={styles.stepTitle}>Photo</Text>
+            <Text style={styles.question}>Photo Preview</Text>
+            <Image source={{ uri: photoUri }} style={styles.preview} />
+            <View style={styles.buttonRow}>
             <TouchableOpacity
               style={styles.noButton}
               disabled={submitting}
@@ -497,6 +508,7 @@ export default function WizardScreen() {
               )}
             </TouchableOpacity>
           </View>
+          </View>
         </View>
         {renderModals()}
       </>
@@ -516,30 +528,31 @@ export default function WizardScreen() {
     return (
       <>
         <KeyboardAvoidingView
-          style={styles.container}
+          style={styles.screen}
           behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
-          <TopBar onBack={handleBack} />
-          <Text style={styles.suiteLabel}>Suite {suiteNumber} · {unitName}</Text>
-          <Text style={styles.stepIndicator}>Step {step + 1} of 4</Text>
-          <Text style={styles.stepTitle}>
-            {WIZARD_STEPS.find((s) => s.key === awaitingReason)?.title}
-          </Text>
-          <Text style={styles.question}>{WIZARD_NO_REASON_PROMPTS[awaitingReason]}</Text>
+          <WizardHeader onBack={handleBack} />
+          <View style={styles.content}>
+            <Text style={styles.stepIndicator}>Step {step + 1} of 4</Text>
+            <Text style={styles.stepTitle}>
+              {WIZARD_STEPS.find((s) => s.key === awaitingReason)?.title}
+            </Text>
+            <Text style={styles.question}>{WIZARD_NO_REASON_PROMPTS[awaitingReason]}</Text>
 
-          <TextInput
-            style={styles.noteInput}
-            placeholder="Enter reason (required)..."
-            value={reasonDraft}
-            onChangeText={setReasonDraft}
-            multiline
-            autoFocus
-          />
+            <TextInput
+              style={styles.noteInput}
+              placeholder="Enter reason (required)..."
+              value={reasonDraft}
+              onChangeText={setReasonDraft}
+              multiline
+              autoFocus
+            />
 
-          <View style={styles.buttonRow}>
-            <TouchableOpacity style={styles.yesButton} onPress={handleReasonContinue}>
-              <Text style={styles.buttonText}>Continue</Text>
-            </TouchableOpacity>
+            <View style={styles.buttonRow}>
+              <TouchableOpacity style={styles.yesButton} onPress={handleReasonContinue}>
+                <Text style={styles.buttonText}>Continue</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </KeyboardAvoidingView>
         {renderModals()}
@@ -549,12 +562,10 @@ export default function WizardScreen() {
 
   return (
     <>
-      <View style={styles.container}>
-        <TopBar onBack={handleBack} />
+      <View style={styles.screen}>
+        <WizardHeader onBack={handleBack} />
 
-        <Text style={styles.suiteLabel}>
-          Suite {suiteNumber} · {unitName}{isEditing ? " · Editing" : ""}
-        </Text>
+        <View style={styles.content}>
         <Text style={styles.stepIndicator}>Step {step + 1} of 4</Text>
         <Text style={styles.stepTitle}>{currentStep.title}</Text>
         <Text style={styles.question}>{currentStep.question}</Text>
@@ -590,6 +601,7 @@ export default function WizardScreen() {
             <Text style={styles.skipToPhotoText}>Take new photo</Text>
           </TouchableOpacity>
         )}
+        </View>
       </View>
       {renderModals()}
     </>
@@ -597,19 +609,12 @@ export default function WizardScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.surface, padding: 24, paddingTop: 60 },
+  screen: { flex: 1, backgroundColor: colors.background },
+  content: { flex: 1, backgroundColor: colors.surface, padding: 24 },
   centered: { justifyContent: "center", alignItems: "center" },
   loadingText: { marginTop: 12, fontSize: 16, color: colors.textSecondary },
-  topBar: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 24,
-  },
-  backText: { fontSize: 16, color: colors.primary },
-  actionsButton: { padding: 8 },
-  actionsText: { fontSize: 24, color: colors.slate700, fontWeight: "700" },
-  suiteLabel: { fontSize: 16, color: colors.textSecondary, marginBottom: 8 },
+  actionsButton: { padding: 4 },
+  actionsText: { fontSize: 22, color: colors.slate700, fontWeight: "700", lineHeight: 24 },
   stepIndicator: { fontSize: 14, color: colors.textMuted, marginBottom: 8 },
   stepTitle: { fontSize: 22, fontWeight: "700", color: colors.text, marginBottom: 12 },
   question: { fontSize: 28, fontWeight: "600", color: colors.text, marginBottom: 40, lineHeight: 36 },

@@ -30,6 +30,7 @@ import { supabase } from "@/lib/supabase";
 import { addToOutbox } from "@/lib/outbox";
 import { addFieldUnit } from "@/lib/add-field-unit";
 import { colors, radius } from "@/lib/theme";
+import { ScreenHeader } from "@/components/screen-header";
 
 interface VisitTile {
   id: string;
@@ -385,8 +386,11 @@ export default function SuiteGridScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>{buildingName}</Text>
+      <ScreenHeader
+        title={buildingName || "Maintenance"}
+        showBack
+        subtitle={`${completed}/${visits.length} suites complete`}
+      >
         {buildingAddress ? (
           <TouchableOpacity
             onPress={() => Linking.openURL(`https://maps.google.com/?q=${encodeURIComponent(buildingAddress)}`)}
@@ -394,10 +398,9 @@ export default function SuiteGridScreen() {
             <Text style={styles.address}>{buildingAddress}</Text>
           </TouchableOpacity>
         ) : null}
-        <Text style={styles.progress}>{completed}/{visits.length} complete</Text>
-        {pendingSync > 0 && (
+        {pendingSync > 0 ? (
           <Text style={styles.syncBadge}>{pendingSync} pending sync</Text>
-        )}
+        ) : null}
         <View style={styles.headerActions}>
           <TouchableOpacity style={styles.secondaryButton} onPress={() => setShowContacts(true)}>
             <Text style={styles.secondaryButtonText}>
@@ -408,7 +411,7 @@ export default function SuiteGridScreen() {
             <Text style={styles.addButtonText}>+ Add unit</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </ScreenHeader>
 
       <TextInput
         style={styles.search}
@@ -620,17 +623,8 @@ export default function SuiteGridScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-  header: {
-    padding: 16,
-    paddingTop: 8,
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  title: { fontSize: 20, fontWeight: "700", color: colors.text },
-  address: { fontSize: 14, color: colors.primary, marginTop: 4, lineHeight: 20 },
-  progress: { fontSize: 14, color: colors.textSecondary, marginTop: 4 },
-  syncBadge: { fontSize: 12, color: colors.warning, marginTop: 4 },
+  address: { fontSize: 14, color: colors.primary, lineHeight: 20 },
+  syncBadge: { fontSize: 12, color: colors.warning, marginTop: 8 },
   headerActions: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 12 },
   secondaryButton: {
     paddingHorizontal: 14,

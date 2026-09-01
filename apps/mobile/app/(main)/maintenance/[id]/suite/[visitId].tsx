@@ -27,6 +27,7 @@ import type { SuiteVisitStatus } from "@maintenancebuddy/shared";
 import { supabase } from "@/lib/supabase";
 import { addToOutbox } from "@/lib/outbox";
 import { colors, radius } from "@/lib/theme";
+import { ScreenHeader } from "@/components/screen-header";
 
 interface UnitTile {
   id: string;
@@ -250,25 +251,22 @@ export default function SuiteUnitsScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Text style={styles.back}>← Back</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>Suite {suiteNumber}</Text>
-        <Text style={styles.progress}>
-          {completed}/{total} units complete · {SUITE_VISIT_STATUS_LABELS[suiteStatus]}
-        </Text>
-        {canServiceUnits && (
-          <TouchableOpacity style={styles.addButton} onPress={() => setShowAddUnit(true)}>
-            <Text style={styles.addButtonText}>+ Add Unit</Text>
-          </TouchableOpacity>
-        )}
-        {canServiceUnits && (
-          <TouchableOpacity style={styles.quickActionLink} onPress={() => setShowQuickActions(true)}>
-            <Text style={styles.quickActionText}>Suite quick actions</Text>
-          </TouchableOpacity>
-        )}
-      </View>
+      <ScreenHeader
+        title={`Suite ${suiteNumber}`}
+        subtitle={`${completed}/${total} units complete · ${SUITE_VISIT_STATUS_LABELS[suiteStatus]}`}
+        showBack
+      >
+        {canServiceUnits ? (
+          <>
+            <TouchableOpacity style={styles.addButton} onPress={() => setShowAddUnit(true)}>
+              <Text style={styles.addButtonText}>+ Add unit</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.quickActionLink} onPress={() => setShowQuickActions(true)}>
+              <Text style={styles.quickActionText}>Suite quick actions</Text>
+            </TouchableOpacity>
+          </>
+        ) : null}
+      </ScreenHeader>
 
       {!canServiceUnits ? (
         <View style={styles.blockedBanner}>
@@ -409,18 +407,7 @@ export default function SuiteUnitsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-  header: {
-    padding: 16,
-    paddingTop: 8,
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  back: { color: colors.primary, fontSize: 16, marginBottom: 8 },
-  title: { fontSize: 20, fontWeight: "700", color: colors.text },
-  progress: { fontSize: 14, color: colors.textSecondary, marginTop: 4 },
   addButton: {
-    marginTop: 12,
     alignSelf: "flex-start",
     backgroundColor: colors.primary,
     paddingHorizontal: 14,
@@ -428,7 +415,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
   },
   addButtonText: { color: colors.white, fontSize: 14, fontWeight: "600" },
-  quickActionLink: { marginTop: 8 },
+  quickActionLink: { marginTop: 10 },
   quickActionText: { color: colors.primary, fontSize: 14 },
   blockedBanner: {
     margin: 16,

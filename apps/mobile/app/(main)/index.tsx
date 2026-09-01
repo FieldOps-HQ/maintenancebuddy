@@ -11,6 +11,7 @@ import { router, useFocusEffect } from "expo-router";
 import { supabase } from "@/lib/supabase";
 import { formatBuildingAddress } from "@maintenancebuddy/shared";
 import { colors, radius } from "@/lib/theme";
+import { ScreenHeader } from "@/components/screen-header";
 
 interface MaintenanceItem {
   id: string;
@@ -82,12 +83,15 @@ export default function MaintenanceListScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>My Maintenances</Text>
-        <TouchableOpacity onPress={handleLogout}>
-          <Text style={styles.logout}>Sign out</Text>
-        </TouchableOpacity>
-      </View>
+      <ScreenHeader
+        title="My Maintenances"
+        large
+        rightAction={
+          <TouchableOpacity onPress={handleLogout}>
+            <Text style={styles.logout}>Sign out</Text>
+          </TouchableOpacity>
+        }
+      />
 
       <FlatList
         data={maintenances}
@@ -129,18 +133,7 @@ export default function MaintenanceListScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: 20,
-    paddingTop: 60,
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  title: { fontSize: 24, fontWeight: "700", color: colors.text },
-  logout: { color: colors.textSecondary, fontSize: 14 },
+  logout: { color: colors.textSecondary, fontSize: 14, fontWeight: "500" },
   card: {
     backgroundColor: colors.surface,
     marginHorizontal: 16,
