@@ -49,6 +49,11 @@ const TERMINAL_UNIT_STATUSES: SuiteVisitStatus[] = [
   "skipped",
 ];
 
+const STATUS_REASON_PROMPTS: Record<"blocked_unit" | "no_access", string> = {
+  blocked_unit: "Why is this unit blocked?",
+  no_access: "Why was there no access to this unit?",
+};
+
 export default function WizardScreen() {
   const params = useLocalSearchParams<{
     visitId: string;
@@ -59,6 +64,7 @@ export default function WizardScreen() {
     unitId: string;
     unitName: string;
     edit?: string;
+    quickComplete?: string;
   }>();
 
   const visitId = params.visitId;
@@ -81,8 +87,11 @@ export default function WizardScreen() {
   const [showCamera, setShowCamera] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [showActions, setShowActions] = useState(false);
+  const [statusReasonPrompt, setStatusReasonPrompt] = useState<"blocked_unit" | "no_access" | null>(null);
+  const [statusReasonDraft, setStatusReasonDraft] = useState("");
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
+  const quickCompleteHandled = useRef(false);
 
   const currentStep = WIZARD_STEPS[step];
 
@@ -154,6 +163,17 @@ export default function WizardScreen() {
     loadVisit();
   }, [unitVisitId, params.edit]);
 
+  useEffect(() => {
+    if (quickCompleteHandled.current) return;
+    if (params.quickComplete !== "true") return;
+    if (params.edit === "true") return;
+    if (!unitVisitId) return;
+    if (loadingVisit) return;
+
+    quickCompleteHandled.current = true;
+    void runQuickComplete();
+  }, [params.quickComplete, params.edit, unitVisitId, loadingVisit]);
+
   async function updateUnitStatus(updates: {
     status: SuiteVisitStatus;
     visited_at?: string | null;
@@ -174,39 +194,59 @@ export default function WizardScreen() {
 
   async function handleMarkBlocked() {
     setShowActions(false);
-    Alert.alert("Mark unit blocked?", "This unit will be marked as blocked.", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Mark blocked",
-        style: "destructive",
-        onPress: async () => {
-          await updateUnitStatus({
-            status: "blocked_unit",
-            visited_at: new Date().toISOString(),
-            notes: null,
-          });
-          goToGrid();
-        },
-      },
-    ]);
+    setStatusReasonDraft("");
+    setStatusReasonPrompt("blocked_unit");
   }
 
   async function handleMarkNoAccess() {
     setShowActions(false);
-    Alert.alert("Mark no access?", "This unit will be marked as no access.", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Mark no access",
-        onPress: async () => {
-          await updateUnitStatus({
-            status: "no_access",
-            visited_at: new Date().toISOString(),
-            notes: null,
-          });
-          goToGrid();
-        },
-      },
-    ]);
+    setStatusReasonDraft("");
+    setStatusReasonPrompt("no_access");
+  }
+
+  async function handleStatusReasonContinue() {
+    if (!statusReasonPrompt) return;
+
+    const reason = statusReasonDraft.trim();
+    if (!reason) {
+      Alert.alert("Reason required", "Please explain why before continuing.");
+      return;
+    }
+
+    await updateUnitStatus({
+      status: statusReasonPrompt,
+      visited_at: new Date().toISOString(),
+      notes: reason,
+      cleaned: null,
+      filter_changed: null,
+      operating_normally: null,
+    });
+    setStatusReasonPrompt(null);
+    setStatusReasonDraft("");
+    goToGrid();
+  }
+
+  async function runQuickComplete() {
+    const quickAnswers: WizardAnswers = {
+      cleaned: true,
+      filter_changed: true,
+      operating_normally: true,
+      reasons: {},
+    };
+
+    setAnswers(quickAnswers);
+    setAwaitingReason(null);
+    setReasonDraft("");
+    await saveProgress(quickAnswers);
+    setStep(3);
+    if (!photoUri) {
+      setShowCamera(true);
+    }
+  }
+
+  async function handleCompleteUnit() {
+    setShowActions(false);
+    await runQuickComplete();
   }
 
   function WizardHeader({ onBack }: { onBack: () => void }) {
@@ -235,6 +275,9 @@ export default function WizardScreen() {
         <Pressable style={styles.modalOverlay} onPress={() => setShowActions(false)}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Unit actions</Text>
+            <TouchableOpacity style={styles.modalAction} onPress={handleCompleteUnit}>
+              <Text style={styles.modalActionText}>Complete unit</Text>
+            </TouchableOpacity>
             <TouchableOpacity style={styles.modalAction} onPress={handleMarkBlocked}>
               <Text style={[styles.modalActionText, styles.modalActionDestructive]}>Mark blocked</Text>
             </TouchableOpacity>
@@ -320,6 +363,11 @@ export default function WizardScreen() {
   }
 
   function handleBack() {
+    if (statusReasonPrompt) {
+      setStatusReasonPrompt(null);
+      setStatusReasonDraft("");
+      return;
+    }
     if (awaitingReason) {
       setAwaitingReason(null);
       setReasonDraft("");
@@ -523,6 +571,41 @@ export default function WizardScreen() {
         : currentStep?.key === "operating_normally"
           ? answers.operating_normally
           : undefined;
+
+  if (statusReasonPrompt) {
+    return (
+      <>
+        <KeyboardAvoidingView
+          style={styles.screen}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+          <WizardHeader onBack={handleBack} />
+          <View style={styles.content}>
+            <Text style={styles.stepTitle}>
+              {statusReasonPrompt === "blocked_unit" ? "Mark blocked" : "Mark no access"}
+            </Text>
+            <Text style={styles.question}>{STATUS_REASON_PROMPTS[statusReasonPrompt]}</Text>
+
+            <TextInput
+              style={styles.noteInput}
+              placeholder="Enter reason (required)..."
+              value={statusReasonDraft}
+              onChangeText={setStatusReasonDraft}
+              multiline
+              autoFocus
+            />
+
+            <View style={styles.buttonRow}>
+              <TouchableOpacity style={styles.yesButton} onPress={handleStatusReasonContinue}>
+                <Text style={styles.buttonText}>Continue</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+        {renderModals()}
+      </>
+    );
+  }
 
   if (awaitingReason) {
     return (

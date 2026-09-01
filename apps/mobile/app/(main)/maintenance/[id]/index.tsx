@@ -72,6 +72,11 @@ const emptyAddUnitForm: AddUnitForm = {
   unit_location: "Main",
 };
 
+const STATUS_REASON_PROMPTS: Record<"blocked_unit" | "no_access", string> = {
+  blocked_unit: "Why is this suite blocked?",
+  no_access: "Why was there no access to this suite?",
+};
+
 export default function SuiteGridScreen() {
   const { id: maintenanceId } = useLocalSearchParams<{ id: string }>();
   const [visits, setVisits] = useState<VisitTile[]>([]);
@@ -80,6 +85,8 @@ export default function SuiteGridScreen() {
   const [buildingId, setBuildingId] = useState("");
   const [search, setSearch] = useState("");
   const [selectedVisit, setSelectedVisit] = useState<VisitTile | null>(null);
+  const [statusReasonPrompt, setStatusReasonPrompt] = useState<"blocked_unit" | "no_access" | null>(null);
+  const [statusReasonDraft, setStatusReasonDraft] = useState("");
   const [showAddUnit, setShowAddUnit] = useState(false);
   const [addUnitForm, setAddUnitForm] = useState<AddUnitForm>(emptyAddUnitForm);
   const [addingUnit, setAddingUnit] = useState(false);
@@ -216,13 +223,27 @@ export default function SuiteGridScreen() {
     return `/maintenance/${maintenanceId}/suite/${visit.id}?suiteNumber=${visit.suite_number}&suiteId=${visit.suite_id}`;
   }
 
-  function wizardRoute(visit: VisitTile) {
+  function wizardRoute(
+    visit: VisitTile,
+    options?: {
+      quickComplete?: boolean;
+      unitVisitId?: string;
+      unitId?: string;
+      unitName?: string;
+      unitStatus?: SuiteVisitStatus;
+    }
+  ) {
+    const unitVisitId = options?.unitVisitId ?? visit.unitVisitId;
+    const unitId = options?.unitId ?? visit.unitId;
+    const unitName = options?.unitName ?? visit.unitName ?? "Unit";
+    const unitStatus = options?.unitStatus ?? visit.unitStatus;
     const edit =
-      visit.unitStatus !== undefined &&
-      visit.unitStatus !== "pending" &&
-      visit.unitStatus !== "in_progress";
-    const base = `/maintenance/${maintenanceId}/wizard/${visit.id}?suiteNumber=${visit.suite_number}&suiteId=${visit.suite_id}&unitVisitId=${visit.unitVisitId}&unitId=${visit.unitId}&unitName=${encodeURIComponent(visit.unitName ?? "Unit")}`;
-    return edit ? `${base}&edit=true` : base;
+      unitStatus !== undefined &&
+      unitStatus !== "pending" &&
+      unitStatus !== "in_progress";
+    const base = `/maintenance/${maintenanceId}/wizard/${visit.id}?suiteNumber=${visit.suite_number}&suiteId=${visit.suite_id}&unitVisitId=${unitVisitId}&unitId=${unitId}&unitName=${encodeURIComponent(unitName)}`;
+    const withEdit = edit ? `${base}&edit=true` : base;
+    return options?.quickComplete ? `${withEdit}&quickComplete=true` : withEdit;
   }
 
   function promptStartVisit(visit: VisitTile) {
@@ -348,12 +369,12 @@ export default function SuiteGridScreen() {
     }
   }
 
-  async function handleQuickAction(status: "no_access" | "blocked_unit", note?: string) {
+  async function handleQuickAction(status: "no_access" | "blocked_unit", note: string) {
     if (!selectedVisit) return;
 
     const updates = {
       status,
-      notes: note || null,
+      notes: note,
       visited_at: new Date().toISOString(),
     };
 
@@ -368,7 +389,73 @@ export default function SuiteGridScreen() {
     }
 
     setSelectedVisit(null);
+    setStatusReasonPrompt(null);
+    setStatusReasonDraft("");
     loadData();
+  }
+
+  function closeQuickActions() {
+    setSelectedVisit(null);
+    setStatusReasonPrompt(null);
+    setStatusReasonDraft("");
+  }
+
+  function startStatusReasonPrompt(status: "no_access" | "blocked_unit") {
+    setStatusReasonPrompt(status);
+    setStatusReasonDraft("");
+  }
+
+  function handleStatusReasonContinue() {
+    if (!statusReasonPrompt) return;
+
+    const reason = statusReasonDraft.trim();
+    if (!reason) {
+      Alert.alert("Reason required", "Please explain why before continuing.");
+      return;
+    }
+
+    handleQuickAction(statusReasonPrompt, reason);
+  }
+
+  async function handleCompleteQuickAction() {
+    if (!selectedVisit) return;
+
+    const visit = selectedVisit;
+    closeQuickActions();
+
+    if (visit.unitsTotal === 1 && visit.unitVisitId && visit.unitId) {
+      router.push(wizardRoute(visit, { quickComplete: true }));
+      return;
+    }
+
+    const { data: unitVisits, error } = await supabase
+      .from("hvac_unit_visits")
+      .select("id, status, hvac_unit:hvac_units(id, name)")
+      .eq("suite_visit_id", visit.id);
+
+    if (error || !unitVisits?.length) {
+      Alert.alert("Error", "Could not load units for this suite.");
+      return;
+    }
+
+    const nextUnit = unitVisits.find(
+      (uv) => uv.status === "pending" || uv.status === "in_progress"
+    );
+
+    if (!nextUnit?.hvac_unit?.id) {
+      Alert.alert("No units to complete", "All units in this suite are already done.");
+      return;
+    }
+
+    router.push(
+      wizardRoute(visit, {
+        quickComplete: true,
+        unitVisitId: nextUnit.id,
+        unitId: nextUnit.hvac_unit.id,
+        unitName: nextUnit.hvac_unit.name ?? "Unit",
+        unitStatus: nextUnit.status as SuiteVisitStatus,
+      })
+    );
   }
 
   function handleSuitePress(visit: VisitTile) {
@@ -471,26 +558,67 @@ export default function SuiteGridScreen() {
       />
 
       <Modal visible={!!selectedVisit} transparent animationType="fade">
-        <Pressable style={styles.modalOverlay} onPress={() => setSelectedVisit(null)}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Suite {selectedVisit?.suite_number}</Text>
-            <Text style={styles.modalSubtitle}>Quick action</Text>
-            <TouchableOpacity
-              style={[styles.modalButton, { backgroundColor: colors.warning }]}
-              onPress={() => handleQuickAction("no_access")}
-            >
-              <Text style={styles.modalButtonText}>No Access</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.modalButton, { backgroundColor: colors.danger }]}
-              onPress={() => handleQuickAction("blocked_unit")}
-            >
-              <Text style={styles.modalButtonText}>Blocked Unit</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.modalCancel} onPress={() => setSelectedVisit(null)}>
-              <Text style={styles.modalCancelText}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
+        <Pressable style={styles.modalOverlay} onPress={closeQuickActions}>
+          <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
+            {statusReasonPrompt ? (
+              <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined}>
+                <Text style={styles.modalTitle}>
+                  {statusReasonPrompt === "blocked_unit" ? "Mark blocked" : "Mark no access"}
+                </Text>
+                <Text style={styles.modalSubtitle}>Suite {selectedVisit?.suite_number}</Text>
+                <Text style={styles.reasonPrompt}>{STATUS_REASON_PROMPTS[statusReasonPrompt]}</Text>
+                <TextInput
+                  style={styles.noteInput}
+                  placeholder="Enter reason (required)..."
+                  value={statusReasonDraft}
+                  onChangeText={setStatusReasonDraft}
+                  multiline
+                  autoFocus
+                />
+                <TouchableOpacity
+                  style={[styles.modalButton, { backgroundColor: colors.primary }]}
+                  onPress={handleStatusReasonContinue}
+                >
+                  <Text style={styles.modalButtonText}>Continue</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.modalCancel}
+                  onPress={() => {
+                    setStatusReasonPrompt(null);
+                    setStatusReasonDraft("");
+                  }}
+                >
+                  <Text style={styles.modalCancelText}>Back</Text>
+                </TouchableOpacity>
+              </KeyboardAvoidingView>
+            ) : (
+              <>
+                <Text style={styles.modalTitle}>Suite {selectedVisit?.suite_number}</Text>
+                <Text style={styles.modalSubtitle}>Quick action</Text>
+                <TouchableOpacity
+                  style={[styles.modalButton, { backgroundColor: colors.primary }]}
+                  onPress={handleCompleteQuickAction}
+                >
+                  <Text style={styles.modalButtonText}>Complete unit</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalButton, { backgroundColor: colors.warning }]}
+                  onPress={() => startStatusReasonPrompt("no_access")}
+                >
+                  <Text style={styles.modalButtonText}>No Access</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalButton, { backgroundColor: colors.danger }]}
+                  onPress={() => startStatusReasonPrompt("blocked_unit")}
+                >
+                  <Text style={styles.modalButtonText}>Blocked Unit</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.modalCancel} onPress={closeQuickActions}>
+                  <Text style={styles.modalCancelText}>Cancel</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </Pressable>
         </Pressable>
       </Modal>
 
@@ -683,7 +811,19 @@ const styles = StyleSheet.create({
   tileTextLight: { color: colors.white },
   modalOverlay: { flex: 1, backgroundColor: colors.overlay, justifyContent: "center" },
   modalOverlayInner: { flex: 1, justifyContent: "center", padding: 24 },
-  modalContent: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: 24 },
+  modalContent: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: 24, marginHorizontal: 24 },
+  reasonPrompt: { fontSize: 16, color: colors.text, marginBottom: 12, textAlign: "center" },
+  noteInput: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.sm,
+    padding: 12,
+    fontSize: 16,
+    minHeight: 80,
+    textAlignVertical: "top",
+    marginBottom: 16,
+    backgroundColor: colors.surface,
+  },
   addSuiteModal: {
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
