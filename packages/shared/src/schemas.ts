@@ -92,6 +92,23 @@ export const loginSchema = z.object({
   password: z.string().min(6),
 });
 
+export const ownerSignupSchema = z.object({
+  organization_name: z.string().min(1, "Organization name is required"),
+  full_name: z.string().min(1, "Full name is required"),
+  email: z.string().email(),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+});
+
+export const teamInviteSchema = z.object({
+  email: z.string().email("Valid email is required"),
+  full_name: z.string().optional(),
+});
+
+export const teamMemberUpdateSchema = z.object({
+  full_name: z.string().min(1, "Name is required"),
+  role: z.enum(["admin", "technician"]),
+});
+
 export const wizardStepSchema = z.object({
   cleaned: z.boolean().optional(),
   filter_changed: z.boolean().optional(),
@@ -112,4 +129,7 @@ export type TechnicianAddHvacUnitInput = z.infer<typeof technicianAddHvacUnitSch
 export type MaintenanceInput = z.infer<typeof maintenanceSchema>;
 export type MaintenanceUpdateInput = z.infer<typeof maintenanceUpdateSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
+export type OwnerSignupInput = z.infer<typeof ownerSignupSchema>;
+export type TeamInviteInput = z.infer<typeof teamInviteSchema>;
+export type TeamMemberUpdateInput = z.infer<typeof teamMemberUpdateSchema>;
 export type WizardStepInput = z.infer<typeof wizardStepSchema>;

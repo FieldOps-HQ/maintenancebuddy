@@ -1,5 +1,23 @@
 export type UserRole = "admin" | "technician";
 
+export type InviteStatus = "pending" | "accepted" | "revoked";
+
+export interface Organization {
+  id: string;
+  name: string;
+  created_at: string;
+}
+
+export interface OrganizationInvite {
+  id: string;
+  organization_id: string;
+  email: string;
+  full_name: string | null;
+  invited_by: string | null;
+  status: InviteStatus;
+  created_at: string;
+}
+
 export type MaintenanceStatus =
   | "scheduled"
   | "in_progress"
@@ -25,11 +43,13 @@ export interface Profile {
   email: string;
   full_name: string;
   role: UserRole;
+  organization_id: string;
   created_at: string;
 }
 
 export interface Building {
   id: string;
+  organization_id: string;
   name: string;
   street_number: string;
   street: string;
@@ -51,6 +71,7 @@ export interface BuildingContact {
 
 export interface FilterSize {
   id: string;
+  organization_id: string;
   length_in: number;
   width_in: number;
   thickness_in: number;

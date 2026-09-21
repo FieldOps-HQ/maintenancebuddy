@@ -3,10 +3,15 @@
 -- Create demo users via auth (handled in seed script via supabase auth admin API)
 -- This seed inserts data that depends on known user IDs from the seed script
 
+insert into public.organizations (id, name)
+values ('00000000-0000-0000-0000-000000000001', 'Demo Organization')
+on conflict (id) do nothing;
+
 -- Demo building
-insert into public.buildings (id, name, street_number, street, city, postal_code)
+insert into public.buildings (id, organization_id, name, street_number, street, city, postal_code)
 values (
   '11111111-1111-1111-1111-111111111111',
+  '00000000-0000-0000-0000-000000000001',
   'Harbour View Condos',
   '100',
   'Lakeshore Blvd',

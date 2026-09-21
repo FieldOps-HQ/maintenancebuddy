@@ -25,6 +25,18 @@ const admin = createClient(supabaseUrl, serviceRoleKey, {
   auth: { autoRefreshToken: false, persistSession: false },
 });
 
+const DEMO_ORG_ID = "00000000-0000-0000-0000-000000000001";
+
+const { error: orgError } = await admin.from("organizations").upsert(
+  { id: DEMO_ORG_ID, name: "Demo Organization" },
+  { onConflict: "id" }
+);
+if (orgError) {
+  console.error("Failed to upsert demo organization:", orgError.message);
+  console.error("Apply migration 20250828000016_organizations.sql first.");
+  process.exit(1);
+}
+
 const users = [
   { email: "admin@maintenancebuddy.com", password: "password123", full_name: "Admin User", role: "admin" },
   { email: "tech@maintenancebuddy.com", password: "password123", full_name: "John Technician", role: "technician" },
@@ -39,6 +51,7 @@ for (const user of users) {
     password: user.password,
     email_confirm: true,
     user_metadata: { full_name: user.full_name, role: user.role },
+    app_metadata: { organization_id: DEMO_ORG_ID, role: user.role },
   });
 
   if (error && !error.message.includes("already been registered")) {
@@ -58,6 +71,7 @@ for (const user of users) {
         email: user.email,
         full_name: user.full_name,
         role: user.role,
+        organization_id: DEMO_ORG_ID,
       },
       { onConflict: "id" }
     );
@@ -70,6 +84,17 @@ for (const user of users) {
 }
 
 const buildingId = "11111111-1111-1111-1111-111111111111";
+
+await admin
+  .from("buildings")
+  .update({ organization_id: DEMO_ORG_ID })
+  .eq("id", buildingId);
+
+await admin
+  .from("filter_sizes")
+  .update({ organization_id: DEMO_ORG_ID })
+  .is("organization_id", null);
+
 const techId = userIds["tech@maintenancebuddy.com"];
 const tech2Id = userIds["tech2@maintenancebuddy.com"];
 

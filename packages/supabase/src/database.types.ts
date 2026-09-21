@@ -9,12 +9,76 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      organizations: {
+        Row: {
+          id: string;
+          name: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      organization_invites: {
+        Row: {
+          id: string;
+          organization_id: string;
+          email: string;
+          full_name: string | null;
+          invited_by: string | null;
+          status: "pending" | "accepted" | "revoked";
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          email: string;
+          full_name?: string | null;
+          invited_by?: string | null;
+          status?: "pending" | "accepted" | "revoked";
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          organization_id?: string;
+          email?: string;
+          full_name?: string | null;
+          invited_by?: string | null;
+          status?: "pending" | "accepted" | "revoked";
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "organization_invites_organization_id_fkey";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "organization_invites_invited_by_fkey";
+            columns: ["invited_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       profiles: {
         Row: {
           id: string;
           email: string;
           full_name: string;
           role: "admin" | "technician";
+          organization_id: string;
           created_at: string;
         };
         Insert: {
@@ -22,6 +86,7 @@ export type Database = {
           email: string;
           full_name: string;
           role?: "admin" | "technician";
+          organization_id: string;
           created_at?: string;
         };
         Update: {
@@ -29,13 +94,23 @@ export type Database = {
           email?: string;
           full_name?: string;
           role?: "admin" | "technician";
+          organization_id?: string;
           created_at?: string;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "profiles_organization_id_fkey";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       buildings: {
         Row: {
           id: string;
+          organization_id: string;
           name: string;
           street_number: string;
           street: string;
@@ -46,6 +121,7 @@ export type Database = {
         };
         Insert: {
           id?: string;
+          organization_id?: string;
           name: string;
           street_number: string;
           street: string;
@@ -56,6 +132,7 @@ export type Database = {
         };
         Update: {
           id?: string;
+          organization_id?: string;
           name?: string;
           street_number?: string;
           street?: string;
@@ -64,7 +141,15 @@ export type Database = {
           created_at?: string;
           updated_at?: string;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "buildings_organization_id_fkey";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       building_contacts: {
         Row: {
@@ -107,6 +192,7 @@ export type Database = {
       filter_sizes: {
         Row: {
           id: string;
+          organization_id: string;
           length_in: number;
           width_in: number;
           thickness_in: number;
@@ -114,6 +200,7 @@ export type Database = {
         };
         Insert: {
           id?: string;
+          organization_id?: string;
           length_in: number;
           width_in: number;
           thickness_in: number;
@@ -121,12 +208,21 @@ export type Database = {
         };
         Update: {
           id?: string;
+          organization_id?: string;
           length_in?: number;
           width_in?: number;
           thickness_in?: number;
           created_at?: string;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "filter_sizes_organization_id_fkey";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       suites: {
         Row: {

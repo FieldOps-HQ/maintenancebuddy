@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { ownerSignupSchema } from "@maintenancebuddy/shared";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,71 +11,56 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Wrench } from "lucide-react";
 
-function inviteParamsPresent() {
-  if (typeof window === "undefined") return false;
-  const url = new URL(window.location.href);
-  if (url.searchParams.get("code") || url.searchParams.get("token_hash")) return true;
-  const hash = url.hash.replace(/^#/, "");
-  if (!hash) return false;
-  const params = new URLSearchParams(hash);
-  const type = params.get("type");
-  return (
-    Boolean(params.get("access_token")) &&
-    (type === "invite" || type === "signup" || type === "recovery" || type === "magiclink")
-  );
-}
-
-export default function LoginForm() {
+export default function SignupForm() {
   const router = useRouter();
-  const searchParams = useSearchParams();
+  const [organizationName, setOrganizationName] = useState("");
+  const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState(searchParams.get("error") === "admin_only" ? "Admin access only." : "");
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    if (!inviteParamsPresent()) return;
-    const { search, hash } = window.location;
-    window.location.replace(`/invite/complete${search}${hash}`);
-  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError("");
 
+    const parsed = ownerSignupSchema.safeParse({
+      organization_name: organizationName,
+      full_name: fullName,
+      email,
+      password,
+    });
+
+    if (!parsed.success) {
+      setError(parsed.error.errors[0]?.message ?? "Invalid input");
+      setLoading(false);
+      return;
+    }
+
     const supabase = createClient();
-    const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error: signUpError } = await supabase.auth.signUp({
+      email: parsed.data.email,
+      password: parsed.data.password,
+      options: {
+        data: {
+          full_name: parsed.data.full_name,
+          organization_name: parsed.data.organization_name,
+          role: "admin",
+        },
+      },
+    });
 
-    if (authError) {
-      setError(authError.message);
+    if (signUpError) {
+      setError(signUpError.message);
       setLoading(false);
       return;
     }
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      setError("Sign-in succeeded but session was not established. Try again.");
-      setLoading(false);
-      return;
-    }
-
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single();
-
-    if (profileError || !profile) {
-      await supabase.auth.signOut();
-      setError("Profile not found. Run pnpm seed or ask an admin to set your role.");
-      setLoading(false);
-      return;
-    }
-
-    if (profile.role !== "admin") {
-      await supabase.auth.signOut();
-      setError("Admin access only. Technicians should use the mobile app.");
+    if (!data.session) {
+      setError(
+        "Account created. Check your email to confirm, then sign in. (Disable email confirmation in Supabase Auth for local dev.)"
+      );
       setLoading(false);
       return;
     }
@@ -94,12 +81,34 @@ export default function LoginForm() {
             <Wrench className="h-6 w-6" />
           </div>
           <div>
-            <CardTitle className="text-2xl text-slate-900">MaintenanceBuddy</CardTitle>
-            <CardDescription className="mt-1">Sign in to the admin dashboard</CardDescription>
+            <CardTitle className="text-2xl text-slate-900">Create your organization</CardTitle>
+            <CardDescription className="mt-1">
+              Set up MaintenanceBuddy for your team
+            </CardDescription>
           </div>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="organization_name">Organization name</Label>
+              <Input
+                id="organization_name"
+                value={organizationName}
+                onChange={(e) => setOrganizationName(e.target.value)}
+                placeholder="Acme HVAC"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="full_name">Your name</Label>
+              <Input
+                id="full_name"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                placeholder="Jordan Lee"
+                required
+              />
+            </div>
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input
@@ -107,7 +116,7 @@ export default function LoginForm() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="admin@maintenancebuddy.com"
+                placeholder="you@company.com"
                 required
               />
             </div>
@@ -118,6 +127,7 @@ export default function LoginForm() {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                minLength={6}
                 required
               />
             </div>
@@ -127,14 +137,14 @@ export default function LoginForm() {
               </div>
             )}
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Signing in..." : "Sign in"}
+              {loading ? "Creating account..." : "Create account"}
             </Button>
           </form>
           <p className="mt-4 text-center text-sm text-slate-500">
-            New organization?{" "}
-            <a href="/signup" className="font-medium text-sky-700 hover:text-sky-800">
-              Create an account
-            </a>
+            Already have an account?{" "}
+            <Link href="/login" className="font-medium text-sky-700 hover:text-sky-800">
+              Sign in
+            </Link>
           </p>
         </CardContent>
       </Card>

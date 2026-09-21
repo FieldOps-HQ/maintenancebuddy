@@ -19,13 +19,7 @@ pnpm install
 
 ### 2. Apply database schema
 
-In your [Supabase Dashboard](https://supabase.com/dashboard) → **SQL Editor**, run these files in order:
-
-1. [`supabase/migrations/20250828000001_initial_schema.sql`](supabase/migrations/20250828000001_initial_schema.sql) — tables, RLS, triggers, storage bucket
-2. [`supabase/migrations/20250828000002_grant_roles.sql`](supabase/migrations/20250828000002_grant_roles.sql) — table grants (required if "Automatically expose new tables" is disabled)
-3. [`supabase/migrations/20250828000003_fix_storage_policies.sql`](supabase/migrations/20250828000003_fix_storage_policies.sql) — fix photo upload permissions for technicians
-4. [`supabase/migrations/20250828000004_storage_grants_and_policies.sql`](supabase/migrations/20250828000004_storage_grants_and_policies.sql) — **required for photo uploads** — storage grants + policies
-5. [`supabase/seed.sql`](supabase/seed.sql) — demo building with 48 suites (optional)
+In your [Supabase Dashboard](https://supabase.com/dashboard) → **SQL Editor**, run the migration files in [`supabase/migrations/`](supabase/migrations/) in filename order, then optionally [`supabase/seed.sql`](supabase/seed.sql) for a demo building.
 
 Alternatively, if you have the [Supabase CLI](https://supabase.com/docs/guides/cli) installed:
 
@@ -42,7 +36,7 @@ In Supabase Dashboard → **Authentication** → **URL Configuration**, add:
 | Setting | Value |
 |---------|-------|
 | Site URL | `http://localhost:3000` |
-| Redirect URLs | `http://localhost:3000/**`, `exp://**` |
+| Redirect URLs | `http://localhost:3000/**`, `http://localhost:3000/auth/callback`, `http://localhost:3000/invite/complete`, `exp://**` |
 
 ### 4. Set environment variables
 
@@ -54,13 +48,14 @@ cp apps/mobile/.env.example apps/mobile/.env
 cp .env.example .env
 ```
 
-| Variable | Where to find it |
-|----------|------------------|
-| `NEXT_PUBLIC_SUPABASE_URL` | Project URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | anon / public key |
-| `EXPO_PUBLIC_SUPABASE_URL` | Same Project URL |
-| `EXPO_PUBLIC_SUPABASE_ANON_KEY` | Same anon key |
-| `SUPABASE_SERVICE_ROLE_KEY` | service_role key (seed script only, never commit) |
+| Variable | Where |
+|----------|-------|
+| `NEXT_PUBLIC_SUPABASE_URL` | `apps/web/.env.local` — Project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `apps/web/.env.local` — anon / public key |
+| `SUPABASE_SERVICE_ROLE_KEY` | `apps/web/.env.local` **and** root `.env` — service_role key (server-only: Team invites + seed; never commit) |
+| `EXPO_PUBLIC_SUPABASE_URL` | `apps/mobile/.env` — same Project URL |
+| `EXPO_PUBLIC_SUPABASE_ANON_KEY` | `apps/mobile/.env` — same anon key |
+| `SUPABASE_URL` | root `.env` — same Project URL (seed script) |
 
 ### 5. Seed demo users (optional)
 
@@ -70,7 +65,7 @@ Ensure root `.env` has `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`, then:
 pnpm seed
 ```
 
-This creates admin and technician accounts plus a sample maintenance job.
+This creates a demo organization, admin and technician accounts, and a sample maintenance job.
 
 ### 6. Start the apps
 
@@ -78,6 +73,30 @@ This creates admin and technician accounts plus a sample maintenance job.
 pnpm --filter web dev       # http://localhost:3000
 pnpm --filter mobile start  # Expo dev server
 ```
+
+### Organizations and team invites
+
+1. An owner creates an account at `/signup` (organization name + email/password) and becomes the org admin.
+2. From **Team** in the dashboard, invite technicians by email (requires `SUPABASE_SERVICE_ROLE_KEY` in `apps/web/.env.local`).
+3. Share the **Copy link** accept URL with the technician (or use the email once the Invite template below is updated).
+4. Technician opens the link, sets a password on `/invite/complete`, then signs in on the mobile app.
+
+#### Required: Invite email template (Supabase Dashboard)
+
+Default invite emails use a PKCE `?code=` redirect that cannot be completed from another device. Update **Authentication → Email Templates → Invite user** so the button uses `TokenHash`:
+
+```html
+<h2>You've been invited</h2>
+<p>You've been invited to create a technician account on MaintenanceBuddy.</p>
+<p>
+  <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=invite&next=/invite/complete"
+    >Accept invitation</a
+  >
+</p>
+```
+
+Also add these Redirect URLs: `http://localhost:3000/auth/confirm`, `http://localhost:3000/invite/complete`.
+
 
 ### Demo accounts (after seed)
 

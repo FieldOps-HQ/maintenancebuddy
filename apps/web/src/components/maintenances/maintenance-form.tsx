@@ -185,7 +185,13 @@ export function MaintenanceForm({
         <Label>Assign Technicians</Label>
         <div className="space-y-2">
           {technicians.length === 0 ? (
-            <p className="text-sm text-zinc-500">No technicians found. Create technician accounts first.</p>
+            <p className="text-sm text-zinc-500">
+              No technicians found.{" "}
+              <a href="/team" className="font-medium text-sky-700 hover:underline">
+                Invite technicians
+              </a>{" "}
+              from the Team page.
+            </p>
           ) : (
             technicians.map((tech) => (
               <label key={tech.id} className="flex items-center gap-3 rounded-lg border border-zinc-100 p-3 cursor-pointer hover:bg-zinc-50">
