@@ -374,7 +374,7 @@ export default function SuiteGridScreen() {
   }
 
   async function handleQuickAction(status: "no_access" | "blocked_unit", note: string) {
-    if (!selectedVisit) return;
+    if (!selectedVisit || selectedVisit.unitsTotal !== 1) return;
 
     const visitId = selectedVisit.id;
 
@@ -421,41 +421,13 @@ export default function SuiteGridScreen() {
     if (!selectedVisit) return;
 
     const visit = selectedVisit;
+    if (visit.unitsTotal !== 1 || !visit.unitVisitId || !visit.unitId) {
+      closeQuickActions();
+      return;
+    }
+
     closeQuickActions();
-
-    if (visit.unitsTotal === 1 && visit.unitVisitId && visit.unitId) {
-      router.push(wizardRoute(visit, { quickComplete: true }));
-      return;
-    }
-
-    const { data: unitVisits, error } = await supabase
-      .from("hvac_unit_visits")
-      .select("id, status, hvac_unit:hvac_units(id, name)")
-      .eq("suite_visit_id", visit.id);
-
-    if (error || !unitVisits?.length) {
-      Alert.alert("Error", "Could not load units for this suite.");
-      return;
-    }
-
-    const nextUnit = unitVisits.find(
-      (uv) => uv.status === "pending" || uv.status === "in_progress"
-    );
-
-    if (!nextUnit?.hvac_unit?.id) {
-      Alert.alert("No units to complete", "All units in this suite are already done.");
-      return;
-    }
-
-    router.push(
-      wizardRoute(visit, {
-        quickComplete: true,
-        unitVisitId: nextUnit.id,
-        unitId: nextUnit.hvac_unit.id,
-        unitName: nextUnit.hvac_unit.name ?? "Unit",
-        unitStatus: nextUnit.status as SuiteVisitStatus,
-      })
-    );
+    router.push(wizardRoute(visit, { quickComplete: true }));
   }
 
   function handleSuitePress(visit: VisitTile) {
@@ -468,6 +440,8 @@ export default function SuiteGridScreen() {
 
   function handleLongPress(visit: VisitTile) {
     if (visit.status !== "pending" && visit.status !== "in_progress") return;
+    // Quick actions only apply to single-unit suites.
+    if (visit.unitsTotal !== 1) return;
     setSelectedVisit(visit);
   }
 

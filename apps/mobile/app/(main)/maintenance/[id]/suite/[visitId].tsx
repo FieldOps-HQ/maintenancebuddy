@@ -176,7 +176,7 @@ export default function SuiteUnitsScreen() {
   }
 
   async function handleQuickAction(status: "no_access" | "blocked_unit", note: string) {
-    if (!visitId) return;
+    if (!visitId || units.length !== 1) return;
 
     try {
       await applyAllUnitsAccessStatus(supabase, visitId, status, note);
@@ -287,9 +287,11 @@ export default function SuiteUnitsScreen() {
             <TouchableOpacity style={styles.addButton} onPress={() => setShowAddUnit(true)}>
               <Text style={styles.addButtonText}>+ Add unit</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.quickActionLink} onPress={() => setShowQuickActions(true)}>
-              <Text style={styles.quickActionText}>Suite quick actions</Text>
-            </TouchableOpacity>
+            {units.length === 1 ? (
+              <TouchableOpacity style={styles.quickActionLink} onPress={() => setShowQuickActions(true)}>
+                <Text style={styles.quickActionText}>Suite quick actions</Text>
+              </TouchableOpacity>
+            ) : null}
           </>
         ) : null}
       </ScreenHeader>
