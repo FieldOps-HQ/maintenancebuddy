@@ -10,15 +10,45 @@ export interface OutboxItem {
     | "update_suite_unit_visits"
     | "upload_photo"
     | "create_deficiency"
+    | "replace_deficiencies"
+    | "complete_unit_visit"
     | "add_suite"
     | "add_hvac_unit";
   payload: Record<string, unknown>;
   createdAt: string;
 }
 
+type OutboxListener = (count: number) => void;
+
+const listeners = new Set<OutboxListener>();
+
+function notifyListeners(count: number) {
+  for (const listener of listeners) {
+    listener(count);
+  }
+}
+
+export function subscribeOutboxCount(listener: OutboxListener): () => void {
+  listeners.add(listener);
+  void getOutboxCount().then(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
 export async function getOutbox(): Promise<OutboxItem[]> {
   const raw = await AsyncStorage.getItem(OUTBOX_KEY);
   return raw ? JSON.parse(raw) : [];
+}
+
+export async function getOutboxCount(): Promise<number> {
+  const outbox = await getOutbox();
+  return outbox.length;
+}
+
+async function saveOutbox(outbox: OutboxItem[]) {
+  await AsyncStorage.setItem(OUTBOX_KEY, JSON.stringify(outbox));
+  notifyListeners(outbox.length);
 }
 
 export async function addToOutbox(item: Omit<OutboxItem, "id" | "createdAt">) {
@@ -28,38 +58,74 @@ export async function addToOutbox(item: Omit<OutboxItem, "id" | "createdAt">) {
     id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
     createdAt: new Date().toISOString(),
   });
-  await AsyncStorage.setItem(OUTBOX_KEY, JSON.stringify(outbox));
+  await saveOutbox(outbox);
 }
 
 export async function removeFromOutbox(id: string) {
   const outbox = await getOutbox();
-  await AsyncStorage.setItem(OUTBOX_KEY, JSON.stringify(outbox.filter((i) => i.id !== id)));
+  await saveOutbox(outbox.filter((i) => i.id !== id));
 }
 
-export async function processOutbox(
-  handlers: {
-    updateUnitVisit: (payload: Record<string, unknown>) => Promise<void>;
-    updateSuiteUnitVisits: (payload: Record<string, unknown>) => Promise<void>;
-    uploadPhoto: (payload: Record<string, unknown>) => Promise<void>;
-    createDeficiency: (payload: Record<string, unknown>) => Promise<void>;
-    addSuite: (payload: Record<string, unknown>) => Promise<void>;
-    addHvacUnit: (payload: Record<string, unknown>) => Promise<void>;
-  }
-) {
+export type OutboxHandlers = {
+  updateUnitVisit: (payload: Record<string, unknown>) => Promise<void>;
+  updateSuiteUnitVisits: (payload: Record<string, unknown>) => Promise<void>;
+  uploadPhoto: (payload: Record<string, unknown>) => Promise<void>;
+  createDeficiency: (payload: Record<string, unknown>) => Promise<void>;
+  replaceDeficiencies: (payload: Record<string, unknown>) => Promise<void>;
+  completeUnitVisit: (payload: Record<string, unknown>) => Promise<void>;
+  addSuite: (payload: Record<string, unknown>) => Promise<void>;
+  addHvacUnit: (payload: Record<string, unknown>) => Promise<void>;
+};
+
+export async function processOutbox(handlers: OutboxHandlers): Promise<{
+  processed: number;
+  remaining: number;
+}> {
   const outbox = await getOutbox();
+  let processed = 0;
+
   for (const item of outbox) {
     try {
-      if (item.type === "update_unit_visit") await handlers.updateUnitVisit(item.payload);
-      if (item.type === "update_suite_unit_visits") await handlers.updateSuiteUnitVisits(item.payload);
-      if (item.type === "upload_photo") await handlers.uploadPhoto(item.payload);
-      if (item.type === "create_deficiency") await handlers.createDeficiency(item.payload);
-      if (item.type === "add_suite") await handlers.addSuite(item.payload);
-      if (item.type === "add_hvac_unit") await handlers.addHvacUnit(item.payload);
+      switch (item.type) {
+        case "update_unit_visit":
+          await handlers.updateUnitVisit(item.payload);
+          break;
+        case "update_suite_unit_visits":
+          await handlers.updateSuiteUnitVisits(item.payload);
+          break;
+        case "upload_photo":
+          await handlers.uploadPhoto(item.payload);
+          break;
+        case "create_deficiency":
+          await handlers.createDeficiency(item.payload);
+          break;
+        case "replace_deficiencies":
+          await handlers.replaceDeficiencies(item.payload);
+          break;
+        case "complete_unit_visit":
+          await handlers.completeUnitVisit(item.payload);
+          break;
+        case "add_suite":
+          await handlers.addSuite(item.payload);
+          break;
+        case "add_hvac_unit":
+          await handlers.addHvacUnit(item.payload);
+          break;
+        default:
+          throw new Error(`Unknown outbox item type: ${(item as OutboxItem).type}`);
+      }
       await removeFromOutbox(item.id);
+      processed += 1;
     } catch {
+      // Keep failed item and stop so order is preserved for dependent work.
       break;
     }
   }
+
+  return {
+    processed,
+    remaining: await getOutboxCount(),
+  };
 }
 
 export function getDeficienciesFromAnswers(answers: {

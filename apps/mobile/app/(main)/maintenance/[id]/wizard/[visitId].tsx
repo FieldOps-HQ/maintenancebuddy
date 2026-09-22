@@ -436,7 +436,9 @@ export default function WizardScreen() {
     setSubmitting(true);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       const finalUpdates = {
         status: "completed" as const,
         visited_at: new Date().toISOString(),
@@ -446,44 +448,89 @@ export default function WizardScreen() {
         operating_normally: answers.operating_normally ?? null,
         notes: null,
       };
+      const deficiencies = getDeficienciesFromAnswers(answers);
 
-      const { error } = await supabase.from("hvac_unit_visits").update(finalUpdates).eq("id", unitVisitId);
-      if (error) {
-        await addToOutbox({ type: "update_unit_visit", payload: { unitVisitId, updates: finalUpdates } });
+      async function resolvePhotoBase64(): Promise<string | null> {
+        if (!hasNewPhoto || !photoUri) return null;
+        return (
+          photoBase64 ??
+          (await FileSystem.readAsStringAsync(photoUri, {
+            encoding: FileSystem.EncodingType.Base64,
+          }))
+        );
       }
 
-      const deficiencies = getDeficienciesFromAnswers(answers);
-      await supabase.from("deficiencies").delete().eq("hvac_unit_visit_id", unitVisitId);
+      const { error } = await supabase
+        .from("hvac_unit_visits")
+        .update(finalUpdates)
+        .eq("id", unitVisitId);
 
-      for (const d of deficiencies) {
-        const { error: dError } = await supabase.from("deficiencies").insert({
-          hvac_unit_visit_id: unitVisitId,
-          category: d.category,
-          description: d.description,
+      if (error) {
+        const base64 = await resolvePhotoBase64();
+        await addToOutbox({
+          type: "complete_unit_visit",
+          payload: {
+            unitVisitId,
+            updates: finalUpdates,
+            deficiencies,
+            photo:
+              base64 != null
+                ? { maintenanceId, suiteId, unitId, base64 }
+                : null,
+          },
         });
-        if (dError) {
+        Alert.alert(
+          "Saved locally",
+          "Visit will sync when you're back online."
+        );
+        router.back();
+        return;
+      }
+
+      const { error: deleteError } = await supabase
+        .from("deficiencies")
+        .delete()
+        .eq("hvac_unit_visit_id", unitVisitId);
+
+      if (deleteError) {
+        await addToOutbox({
+          type: "replace_deficiencies",
+          payload: { unitVisitId, deficiencies },
+        });
+      } else if (deficiencies.length > 0) {
+        const { error: insertError } = await supabase.from("deficiencies").insert(
+          deficiencies.map((d) => ({
+            hvac_unit_visit_id: unitVisitId,
+            category: d.category,
+            description: d.description,
+          }))
+        );
+        if (insertError) {
           await addToOutbox({
-            type: "create_deficiency",
-            payload: { unitVisitId, category: d.category, description: d.description },
+            type: "replace_deficiencies",
+            payload: { unitVisitId, deficiencies },
           });
         }
       }
 
       if (hasNewPhoto) {
-        await uploadVisitPhoto(photoUri, maintenanceId, suiteId, unitId, unitVisitId, photoBase64);
-      }
-
-      router.back();
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Photo upload failed";
-
-      if (hasNewPhoto && photoUri) {
         try {
-          const base64 =
-            photoBase64 ??
-            (await FileSystem.readAsStringAsync(photoUri, {
-              encoding: FileSystem.EncodingType.Base64,
-            }));
+          await uploadVisitPhoto(
+            photoUri,
+            maintenanceId,
+            suiteId,
+            unitId,
+            unitVisitId,
+            photoBase64
+          );
+        } catch (photoErr) {
+          const message =
+            photoErr instanceof Error ? photoErr.message : "Photo upload failed";
+          const base64 = await resolvePhotoBase64();
+          if (!base64) {
+            Alert.alert("Upload failed", message);
+            return;
+          }
           await addToOutbox({
             type: "upload_photo",
             payload: { unitVisitId, maintenanceId, suiteId, unitId, base64 },
@@ -492,13 +539,13 @@ export default function WizardScreen() {
             "Photo saved locally",
             `Visit updated but photo upload failed:\n${message}\n\nPhoto queued to sync later.`
           );
-          router.back();
-        } catch {
-          Alert.alert("Upload failed", message);
         }
-      } else {
-        Alert.alert("Save failed", message);
       }
+
+      router.back();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Save failed";
+      Alert.alert("Save failed", message);
     } finally {
       setSubmitting(false);
     }

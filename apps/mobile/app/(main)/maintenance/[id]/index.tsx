@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -29,9 +29,10 @@ import {
 } from "@maintenancebuddy/shared";
 import type { SuiteVisitStatus } from "@maintenancebuddy/shared";
 import { supabase } from "@/lib/supabase";
-import { addToOutbox } from "@/lib/outbox";
+import { addToOutbox, subscribeOutboxCount } from "@/lib/outbox";
 import { addFieldUnit } from "@/lib/add-field-unit";
 import { applyAllUnitsAccessStatus } from "@/lib/suite-visit-status";
+import { runOutboxSync } from "@/lib/sync";
 import { colors, radius } from "@/lib/theme";
 import { ScreenHeader } from "@/components/screen-header";
 
@@ -194,8 +195,11 @@ export default function SuiteGridScreen() {
     );
   }, [maintenanceId]);
 
+  useEffect(() => subscribeOutboxCount(setPendingSync), []);
+
   useFocusEffect(
     useCallback(() => {
+      void runOutboxSync();
       loadData();
     }, [loadData])
   );
@@ -203,6 +207,7 @@ export default function SuiteGridScreen() {
   async function handleRefresh() {
     setRefreshing(true);
     try {
+      await runOutboxSync();
       await loadData();
     } finally {
       setRefreshing(false);
@@ -329,7 +334,6 @@ export default function SuiteGridScreen() {
           unit_location: parsed.data.unit_location,
         },
       });
-      setPendingSync((p) => p + 1);
       setShowAddUnit(false);
       setAddUnitForm(emptyAddUnitForm);
       Alert.alert(
@@ -414,7 +418,6 @@ export default function SuiteGridScreen() {
         type: "update_suite_unit_visits",
         payload: { suiteVisitId: visitId, status, note },
       });
-      setPendingSync((p) => p + 1);
     }
 
     setSelectedVisit(null);

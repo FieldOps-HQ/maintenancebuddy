@@ -2,101 +2,13 @@ import { Stack } from "expo-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { useEffect } from "react";
-import { supabase } from "@/lib/supabase";
-import { processOutbox } from "@/lib/outbox";
-import { addFieldUnit } from "@/lib/add-field-unit";
-import { buildUnitAccessStatusUpdates } from "@/lib/suite-visit-status";
-import { base64ToArrayBuffer } from "@/lib/upload-photo";
+import { startOutboxSyncListener } from "@/lib/sync";
 
 const queryClient = new QueryClient();
 
 export default function RootLayout() {
   useEffect(() => {
-    processOutbox({
-      updateUnitVisit: async (payload) => {
-        const { unitVisitId, updates } = payload as {
-          unitVisitId: string;
-          updates: Record<string, unknown>;
-        };
-        await supabase.from("hvac_unit_visits").update(updates as never).eq("id", unitVisitId);
-      },
-      updateSuiteUnitVisits: async (payload) => {
-        const { suiteVisitId, status, note } = payload as {
-          suiteVisitId: string;
-          status: "no_access" | "blocked_unit";
-          note: string;
-        };
-        await supabase
-          .from("hvac_unit_visits")
-          .update(buildUnitAccessStatusUpdates(status, note) as never)
-          .eq("suite_visit_id", suiteVisitId);
-      },
-      uploadPhoto: async (payload) => {
-        const { unitVisitId, maintenanceId, suiteId, unitId, base64 } = payload as {
-          unitVisitId: string;
-          maintenanceId: string;
-          suiteId: string;
-          unitId: string;
-          base64: string;
-        };
-        const path = `${maintenanceId}/${suiteId}/${unitId}/${Date.now()}.jpg`;
-        const { error } = await supabase.storage.from("visit-photos").upload(path, base64ToArrayBuffer(base64), {
-          contentType: "image/jpeg",
-          upsert: true,
-        });
-        if (!error) {
-          await supabase.from("visit_photos").delete().eq("hvac_unit_visit_id", unitVisitId);
-          await supabase.from("visit_photos").insert({ hvac_unit_visit_id: unitVisitId, storage_path: path });
-        }
-      },
-      createDeficiency: async (payload) => {
-        const { unitVisitId, category, description } = payload as {
-          unitVisitId: string;
-          category: string;
-          description: string;
-        };
-        await supabase.from("deficiencies").insert({
-          hvac_unit_visit_id: unitVisitId,
-          category: category as "not_cleaned",
-          description,
-        });
-      },
-      addSuite: async (payload) => {
-        const { buildingId, suite_number, filter_size, unit_location, suite } = payload as {
-          buildingId: string;
-          suite_number?: string;
-          filter_size?: string;
-          unit_location?: string;
-          suite?: {
-            suite_number: string;
-            floor?: string;
-            filter_size?: string;
-          };
-        };
-
-        const result = await addFieldUnit(supabase, buildingId, {
-          suite_number: suite_number ?? suite?.suite_number ?? "",
-          filter_size: filter_size ?? suite?.filter_size ?? "",
-          unit_location,
-        });
-
-        if (result.error) {
-          throw new Error(result.error);
-        }
-      },
-      addHvacUnit: async (payload) => {
-        const { suiteId, unit } = payload as {
-          suiteId: string;
-          unit: {
-            name: string;
-            location_notes?: string;
-            filter_size?: string;
-            filter_quantity?: number;
-          };
-        };
-        await supabase.from("hvac_units").insert({ ...unit, filter_quantity: 1, suite_id: suiteId });
-      },
-    });
+    return startOutboxSyncListener();
   }, []);
 
   return (
