@@ -6,22 +6,18 @@ import { PageHeader } from "@/components/layout/page-header";
 import { ChevronRight, Plus } from "lucide-react";
 import { BuildingForm } from "@/components/buildings/building-form";
 
+type CountEmbed = { count: number }[] | null;
+
+function readCount(value: CountEmbed): number {
+  return value?.[0]?.count ?? 0;
+}
+
 export default async function BuildingsPage() {
   const supabase = await createClient();
   const { data: buildings } = await supabase
     .from("buildings")
-    .select("*")
+    .select("*, suites(count), building_contacts(count)")
     .order("name");
-
-  const buildingsWithCounts = await Promise.all(
-    (buildings ?? []).map(async (building) => {
-      const [{ count: suiteCount }, { count: contactCount }] = await Promise.all([
-        supabase.from("suites").select("*", { count: "exact", head: true }).eq("building_id", building.id),
-        supabase.from("building_contacts").select("*", { count: "exact", head: true }).eq("building_id", building.id),
-      ]);
-      return { ...building, suiteCount: suiteCount ?? 0, contactCount: contactCount ?? 0 };
-    })
-  );
 
   return (
     <div className="space-y-8">
@@ -50,27 +46,32 @@ export default async function BuildingsPage() {
               </CardContent>
             </Card>
           ) : (
-            buildingsWithCounts.map((building) => (
-              <Link key={building.id} href={`/buildings/${building.id}`}>
-                <Card className="group transition-all hover:-translate-y-0.5 hover:border-sky-200/60 hover:shadow-md">
-                  <CardContent className="flex items-center justify-between py-4">
-                    <div>
-                      <p className="font-semibold text-slate-900 group-hover:text-sky-700">{building.name}</p>
-                      <p className="text-sm text-slate-500">
-                        {formatBuildingAddress(building)}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <div className="text-right text-sm text-slate-500">
-                        <p>{building.suiteCount} suites</p>
-                        <p>{building.contactCount} contacts</p>
+            buildings.map((building) => {
+              const suiteCount = readCount(building.suites as CountEmbed);
+              const contactCount = readCount(building.building_contacts as CountEmbed);
+
+              return (
+                <Link key={building.id} href={`/buildings/${building.id}`}>
+                  <Card className="group transition-all hover:-translate-y-0.5 hover:border-sky-200/60 hover:shadow-md">
+                    <CardContent className="flex items-center justify-between py-4">
+                      <div>
+                        <p className="font-semibold text-slate-900 group-hover:text-sky-700">{building.name}</p>
+                        <p className="text-sm text-slate-500">
+                          {formatBuildingAddress(building)}
+                        </p>
                       </div>
-                      <ChevronRight className="h-5 w-5 text-slate-300 transition-colors group-hover:text-sky-500" />
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
-            ))
+                      <div className="flex items-center gap-4">
+                        <div className="text-right text-sm text-slate-500">
+                          <p>{suiteCount} suites</p>
+                          <p>{contactCount} contacts</p>
+                        </div>
+                        <ChevronRight className="h-5 w-5 text-slate-300 transition-colors group-hover:text-sky-500" />
+                      </div>
+                    </CardContent>
+                  </Card>
+                </Link>
+              );
+            })
           )}
         </div>
       </div>

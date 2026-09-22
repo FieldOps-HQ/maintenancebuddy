@@ -14,12 +14,31 @@ const statusVariant: Record<string, "secondary" | "warning" | "success" | "destr
   cancelled: "destructive",
 };
 
+const DONE_STATUSES = new Set(["completed", "blocked_unit", "no_access"]);
+
 export default async function MaintenancesPage() {
   const supabase = await createClient();
   const { data: maintenances } = await supabase
     .from("maintenances")
-    .select("*, building:buildings(name), suite_visits(status)")
+    .select("id, start_date, end_date, status, building:buildings(name)")
     .order("start_date", { ascending: false });
+
+  const maintenanceIds = (maintenances ?? []).map((m) => m.id);
+  const progressByMaintenance = new Map<string, { total: number; done: number }>();
+
+  if (maintenanceIds.length > 0) {
+    const { data: visitStatuses } = await supabase
+      .from("suite_visits")
+      .select("maintenance_id, status")
+      .in("maintenance_id", maintenanceIds);
+
+    for (const visit of visitStatuses ?? []) {
+      const current = progressByMaintenance.get(visit.maintenance_id) ?? { total: 0, done: 0 };
+      current.total += 1;
+      if (DONE_STATUSES.has(visit.status)) current.done += 1;
+      progressByMaintenance.set(visit.maintenance_id, current);
+    }
+  }
 
   return (
     <div className="space-y-8">
@@ -45,10 +64,7 @@ export default async function MaintenancesPage() {
           </Card>
         ) : (
           maintenances.map((m) => {
-            const total = m.suite_visits?.length ?? 0;
-            const done = m.suite_visits?.filter((v) =>
-              ["completed", "blocked_unit", "no_access"].includes(v.status)
-            ).length ?? 0;
+            const progress = progressByMaintenance.get(m.id) ?? { total: 0, done: 0 };
 
             return (
               <Link key={m.id} href={`/maintenances/${m.id}`}>
@@ -62,7 +78,7 @@ export default async function MaintenancesPage() {
                     </div>
                     <div className="flex items-center gap-4">
                       <p className="text-sm text-slate-500">
-                        {done}/{total} suites
+                        {progress.done}/{progress.total} suites
                       </p>
                       <Badge variant={statusVariant[m.status] ?? "secondary"}>
                         {m.status.replace("_", " ")}

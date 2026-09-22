@@ -145,7 +145,7 @@ function UnitPhoto({ unitVisit }: { unitVisit: UnitVisitDetailData }) {
   );
 }
 
-async function fetchSuiteVisit(suiteVisitId: string) {
+export async function fetchSuiteVisit(suiteVisitId: string) {
   const supabase = createClient();
   const { data, error } = await supabase
     .from("suite_visits")

@@ -9,19 +9,27 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
   SuiteVisitDetailDialog,
+  fetchSuiteVisit,
   type SuiteVisitDetailData,
 } from "@/components/maintenances/suite-visit-detail-dialog";
-import { SUITE_VISIT_SELECT, mapSuiteVisitRow } from "@/lib/suite-visit-mapper";
+import {
+  SUITE_VISIT_GRID_SELECT,
+  mapSuiteVisitGridRows,
+} from "@/lib/suite-visit-mapper";
 
 export function MaintenanceProgress({
   maintenanceId,
+  buildingId,
   initialVisits,
 }: {
   maintenanceId: string;
+  buildingId: string;
   initialVisits: SuiteVisitDetailData[];
 }) {
   const [visits, setVisits] = useState(initialVisits);
   const [selectedVisit, setSelectedVisit] = useState<SuiteVisitDetailData | null>(null);
+  const [openingVisitId, setOpeningVisitId] = useState<string | null>(null);
+  const [openError, setOpenError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
 
   const filteredVisits = useMemo(() => {
@@ -35,15 +43,27 @@ export function MaintenanceProgress({
 
   const fetchVisits = useCallback(async () => {
     const supabase = createClient();
-    const { data } = await supabase
-      .from("suite_visits")
-      .select(SUITE_VISIT_SELECT)
-      .eq("maintenance_id", maintenanceId);
+    const [{ data: suiteVisits }, { data: suites }] = await Promise.all([
+      supabase
+        .from("suite_visits")
+        .select(SUITE_VISIT_GRID_SELECT)
+        .eq("maintenance_id", maintenanceId),
+      supabase
+        .from("suites")
+        .select("id, suite_number, floor")
+        .eq("building_id", buildingId),
+    ]);
 
-    if (data) {
-      setVisits(data.map(mapSuiteVisitRow));
-    }
-  }, [maintenanceId]);
+    if (!suiteVisits) return;
+
+    const suitesById = new Map(
+      (suites ?? []).map((suite) => [
+        suite.id,
+        { suite_number: suite.suite_number, floor: suite.floor },
+      ])
+    );
+    setVisits(mapSuiteVisitGridRows(suiteVisits, suitesById));
+  }, [maintenanceId, buildingId]);
 
   useEffect(() => {
     setVisits(initialVisits);
@@ -96,6 +116,20 @@ export function MaintenanceProgress({
     };
   }, [maintenanceId, fetchVisits]);
 
+  async function handleSuiteClick(visit: SuiteVisitDetailData) {
+    setOpenError(null);
+    setOpeningVisitId(visit.id);
+    try {
+      const full = await fetchSuiteVisit(visit.id);
+      setVisits((current) => current.map((item) => (item.id === full.id ? full : item)));
+      setSelectedVisit(full);
+    } catch (err) {
+      setOpenError(err instanceof Error ? err.message : "Could not open suite details");
+    } finally {
+      setOpeningVisitId(null);
+    }
+  }
+
   return (
     <>
       <Card>
@@ -122,6 +156,7 @@ export function MaintenanceProgress({
               </span>
             ))}
           </div>
+          {openError && <p className="text-sm text-red-600">{openError}</p>}
         </CardHeader>
         <CardContent>
           {filteredVisits.length === 0 ? (
@@ -134,23 +169,27 @@ export function MaintenanceProgress({
                 const { completed, total } = countCompletedUnitVisits(visit.unit_visits);
                 const progressLabel = total > 1 ? `${completed}/${total}` : visit.suite_number;
                 const reasonPreview = getVisitReasonPreview(visit);
+                const isOpening = openingVisitId === visit.id;
 
                 return (
                   <button
                     key={visit.id}
                     type="button"
-                    onClick={() => setSelectedVisit(visit)}
-                    className="flex h-12 cursor-pointer flex-col items-center justify-center rounded-lg text-xs font-semibold transition-opacity hover:opacity-80"
+                    onClick={() => handleSuiteClick(visit)}
+                    disabled={openingVisitId !== null}
+                    className="flex h-12 cursor-pointer flex-col items-center justify-center rounded-lg text-xs font-semibold transition-opacity hover:opacity-80 disabled:cursor-wait disabled:opacity-70"
                     style={{
-                      backgroundColor: MOBILE_STATUS_COLORS[visit.status],
+                      backgroundColor: MOBILE_STATUS_COLORS[visit.status] ?? MOBILE_STATUS_COLORS.pending,
                       color: visit.status === "pending" ? "#52525b" : "#ffffff",
                     }}
-                    title={`${visit.suite_number}: ${SUITE_VISIT_STATUS_LABELS[visit.status]}${
+                    title={`${visit.suite_number}: ${SUITE_VISIT_STATUS_LABELS[visit.status] ?? visit.status}${
                       total > 1 ? ` (${completed}/${total} units)` : ""
                     }${reasonPreview ? `\nReason: ${reasonPreview}` : ""}`}
                   >
-                    <span>{visit.suite_number}</span>
-                    {total > 1 && <span className="text-[10px] font-normal opacity-90">{progressLabel}</span>}
+                    <span>{isOpening ? "…" : visit.suite_number}</span>
+                    {total > 1 && !isOpening && (
+                      <span className="text-[10px] font-normal opacity-90">{progressLabel}</span>
+                    )}
                   </button>
                 );
               })}

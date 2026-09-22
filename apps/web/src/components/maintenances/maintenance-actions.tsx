@@ -238,21 +238,51 @@ function MaintenanceEditForm({
 export function MaintenanceHeader({
   maintenance,
   buildingName,
-  technicians,
   assignedTechnicianIds,
-  activeMaintenances,
 }: {
   maintenance: MaintenanceData;
   buildingName: string;
-  technicians: Technician[];
   assignedTechnicianIds: string[];
-  activeMaintenances: ActiveMaintenance[];
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
+  const [editLoading, setEditLoading] = useState(false);
+  const [editError, setEditError] = useState("");
+  const [technicians, setTechnicians] = useState<Technician[]>([]);
+  const [activeMaintenances, setActiveMaintenances] = useState<ActiveMaintenance[]>([]);
+
+  async function startEditing() {
+    setEditLoading(true);
+    setEditError("");
+
+    const supabase = createClient();
+    const [{ data: techRows, error: techError }, { data: activeRows, error: activeError }] =
+      await Promise.all([
+        supabase
+          .from("profiles")
+          .select("id, full_name, email")
+          .eq("role", "technician")
+          .order("full_name"),
+        supabase
+          .from("maintenances")
+          .select("id, building_id")
+          .in("status", ACTIVE_MAINTENANCE_STATUSES),
+      ]);
+
+    if (techError || activeError) {
+      setEditError(techError?.message ?? activeError?.message ?? "Failed to load edit form");
+      setEditLoading(false);
+      return;
+    }
+
+    setTechnicians(techRows ?? []);
+    setActiveMaintenances(activeRows ?? []);
+    setEditing(true);
+    setEditLoading(false);
+  }
 
   async function handleDelete() {
     setDeleting(true);
@@ -305,8 +335,8 @@ export function MaintenanceHeader({
       </div>
       <div className="flex shrink-0 flex-col items-stretch gap-2 sm:items-end">
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setEditing(true)}>
-            Edit
+          <Button variant="outline" onClick={startEditing} disabled={editLoading}>
+            {editLoading ? "Loading..." : "Edit"}
           </Button>
           {!confirmDelete ? (
             <Button variant="destructive" onClick={() => setConfirmDelete(true)}>
@@ -323,6 +353,7 @@ export function MaintenanceHeader({
             </>
           )}
         </div>
+        {editError && <p className="text-sm text-red-600">{editError}</p>}
         {confirmDelete && (
           <p className="max-w-xs text-right text-sm text-red-600">
             This will permanently delete the maintenance and all suite visits, photos, and

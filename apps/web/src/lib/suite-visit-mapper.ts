@@ -4,6 +4,7 @@ import type {
   UnitVisitDetailData,
 } from "@/components/maintenances/suite-visit-detail-dialog";
 
+/** Full unit payload for the suite detail dialog (includes photos). */
 export const UNIT_VISIT_SELECT = `
   id,
   status,
@@ -24,6 +25,38 @@ export const SUITE_VISIT_SELECT = `
   hvac_unit_visits(${UNIT_VISIT_SELECT})
 `;
 
+/** Flat suite-visit rows only — no nested embeds (avoids slow PostgREST+RLS joins). */
+export const SUITE_VISIT_GRID_SELECT = `id, status, suite_id`;
+
+/** Heavier select used only for the issues sidebar (streamed after the grid). */
+export const SUITE_VISIT_ISSUES_SELECT = `
+  suite:suites(suite_number),
+  hvac_unit_visits(
+    id,
+    status,
+    notes,
+    hvac_unit:hvac_units(name),
+    deficiencies:deficiencies!deficiencies_hvac_unit_visit_id_fkey(id, category, description)
+  )
+`;
+
+export function mapSuiteVisitGridRows(
+  visits: { id: string; status: string; suite_id: string }[],
+  suitesById: Map<string, { suite_number: string; floor: string | null }>
+): SuiteVisitDetailData[] {
+  return visits.map((visit) => {
+    const suite = suitesById.get(visit.suite_id);
+    return {
+      id: visit.id,
+      status: visit.status as SuiteVisitStatus,
+      suite_number: suite?.suite_number ?? "",
+      floor: suite?.floor ?? null,
+      visited_at: null,
+      unit_visits: [] as UnitVisitDetailData[],
+    };
+  });
+}
+
 export function mapSuiteVisitRow(v: {
   id: string;
   visited_at: string | null;
@@ -34,15 +67,15 @@ export function mapSuiteVisitRow(v: {
   hvac_unit_visits?: {
     id: string;
     status: string;
-    cleaned: boolean | null;
-    filter_changed: boolean | null;
-    operating_normally: boolean | null;
-    visited_at: string | null;
+    cleaned?: boolean | null;
+    filter_changed?: boolean | null;
+    operating_normally?: boolean | null;
+    visited_at?: string | null;
     notes: string | null;
     hvac_unit: {
       name: string;
-      filter_size: string | null;
-      filter_quantity: number | null;
+      filter_size?: string | null;
+      filter_quantity?: number | null;
     } | null;
     deficiencies?: { id: string; category: string; description: string }[];
     visit_photos?: { id: string; storage_path: string }[];
@@ -51,10 +84,10 @@ export function mapSuiteVisitRow(v: {
   const unitVisits: UnitVisitDetailData[] = (v.hvac_unit_visits ?? []).map((uv) => ({
     id: uv.id,
     status: uv.status as SuiteVisitStatus,
-    cleaned: uv.cleaned,
-    filter_changed: uv.filter_changed,
-    operating_normally: uv.operating_normally,
-    visited_at: uv.visited_at,
+    cleaned: uv.cleaned ?? null,
+    filter_changed: uv.filter_changed ?? null,
+    operating_normally: uv.operating_normally ?? null,
+    visited_at: uv.visited_at ?? null,
     notes: uv.notes,
     unit_name: uv.hvac_unit?.name ?? "Unit",
     filter_size: uv.hvac_unit?.filter_size ?? null,

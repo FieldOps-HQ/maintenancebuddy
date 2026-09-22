@@ -1,27 +1,26 @@
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { ACTIVE_MAINTENANCE_STATUSES } from "@maintenancebuddy/shared";
-import { collectVisitIssues } from "@/lib/visit-issues";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { MaintenanceProgress } from "@/components/maintenances/maintenance-progress";
 import { DownloadReportButton } from "@/components/maintenances/download-report-button";
 import { MaintenanceHeader } from "@/components/maintenances/maintenance-actions";
-import { VisitIssuesCard } from "@/components/maintenances/visit-issues-card";
-import type { SuiteVisitDetailData } from "@/components/maintenances/suite-visit-detail-dialog";
-import { mapSuiteVisitRow } from "@/lib/suite-visit-mapper";
+import { MaintenanceSidePanels } from "@/components/maintenances/maintenance-side-panels";
+import { MaintenanceGridSection } from "@/components/maintenances/maintenance-grid-section";
 
-const UNIT_VISIT_SELECT = `
-  id,
-  status,
-  cleaned,
-  filter_changed,
-  operating_normally,
-  visited_at,
-  notes,
-  hvac_unit:hvac_units(name, filter_size, filter_quantity),
-  deficiencies:deficiencies!deficiencies_hvac_unit_visit_id_fkey(id, category, description),
-  visit_photos:visit_photos!visit_photos_hvac_unit_visit_id_fkey(id, storage_path)
-`;
+function GridSkeleton() {
+  return (
+    <div className="space-y-3 animate-pulse">
+      <div className="h-4 w-40 rounded bg-slate-100" />
+      <div className="rounded-xl border border-slate-200 bg-white p-6">
+        <div className="mb-4 h-5 w-24 rounded bg-slate-200" />
+        <div className="grid grid-cols-4 gap-2 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12">
+          {Array.from({ length: 24 }).map((_, index) => (
+            <div key={index} className="h-12 rounded-lg bg-slate-100" />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default async function MaintenanceDetailPage({
   params,
@@ -31,95 +30,61 @@ export default async function MaintenanceDetailPage({
   const { id } = await params;
   const supabase = await createClient();
 
-  const [{ data: maintenance }, { data: technicians }, { data: activeMaintenances }] =
-    await Promise.all([
-      supabase
-        .from("maintenances")
-        .select(`
-          *,
-          building:buildings(*),
-          assignments:maintenance_assignments(technician_id, technician:profiles(full_name, email)),
-          suite_visits(
-            *,
-            suite:suites(*),
-            hvac_unit_visits(${UNIT_VISIT_SELECT})
-          )
-        `)
-        .eq("id", id)
-        .single(),
-      supabase
-        .from("profiles")
-        .select("id, full_name, email")
-        .eq("role", "technician")
-        .order("full_name"),
-      supabase
-        .from("maintenances")
-        .select("id, building_id")
-        .in("status", ACTIVE_MAINTENANCE_STATUSES),
-    ]);
+  const { data: maintenance, error: maintenanceError } = await supabase
+    .from("maintenances")
+    .select(`
+      id,
+      building_id,
+      start_date,
+      end_date,
+      status,
+      notes,
+      building:buildings(name),
+      assignments:maintenance_assignments(technician_id, technician:profiles(full_name, email))
+    `)
+    .eq("id", id)
+    .single();
+
+  if (maintenanceError && maintenanceError.code !== "PGRST116") {
+    throw new Error(maintenanceError.message);
+  }
 
   if (!maintenance) notFound();
-
-  const visits = maintenance.suite_visits ?? [];
-  const total = visits.length;
-  const done = visits.filter((v) =>
-    ["completed", "blocked_unit", "no_access"].includes(v.status)
-  ).length;
-  const visitIssues = collectVisitIssues(visits);
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="space-y-1">
-          <MaintenanceHeader
-            maintenance={{
-              id: maintenance.id,
-              building_id: maintenance.building_id,
-              start_date: maintenance.start_date,
-              end_date: maintenance.end_date,
-              status: maintenance.status,
-              notes: maintenance.notes,
-            }}
-            buildingName={maintenance.building?.name ?? "Maintenance"}
-            technicians={technicians ?? []}
-            assignedTechnicianIds={
-              maintenance.assignments?.map((a) => a.technician_id).filter(Boolean) ?? []
-            }
-            activeMaintenances={activeMaintenances ?? []}
-          />
-          <p className="text-sm text-slate-500">
-            {done}/{total} suites complete
-          </p>
-        </div>
+        <MaintenanceHeader
+          maintenance={{
+            id: maintenance.id,
+            building_id: maintenance.building_id,
+            start_date: maintenance.start_date,
+            end_date: maintenance.end_date,
+            status: maintenance.status,
+            notes: maintenance.notes,
+          }}
+          buildingName={maintenance.building?.name ?? "Maintenance"}
+          assignedTechnicianIds={
+            maintenance.assignments?.map((a) => a.technician_id).filter(Boolean) ?? []
+          }
+        />
         <DownloadReportButton maintenanceId={id} />
       </div>
 
-      <MaintenanceProgress
-        maintenanceId={id}
-        initialVisits={visits.map(mapSuiteVisitRow)}
-      />
+      <Suspense fallback={<GridSkeleton />}>
+        <MaintenanceGridSection maintenanceId={id} buildingId={maintenance.building_id} />
+      </Suspense>
 
-      {(maintenance.assignments?.length ?? 0) > 0 || visitIssues.length > 0 ? (
-        <div className="grid gap-6 lg:grid-cols-2">
-          {(maintenance.assignments?.length ?? 0) > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Assigned Technicians</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {maintenance.assignments?.map((a) => (
-                  <div key={a.technician?.email} className="text-sm">
-                    <p className="font-medium">{a.technician?.full_name}</p>
-                    <p className="text-slate-500">{a.technician?.email}</p>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          )}
-
-          {visitIssues.length > 0 && <VisitIssuesCard issues={visitIssues} />}
-        </div>
-      ) : null}
+      <Suspense
+        fallback={
+          <div className="h-40 animate-pulse rounded-xl border border-slate-200 bg-slate-50" />
+        }
+      >
+        <MaintenanceSidePanels
+          maintenanceId={id}
+          assignments={maintenance.assignments ?? []}
+        />
+      </Suspense>
     </div>
   );
 }
