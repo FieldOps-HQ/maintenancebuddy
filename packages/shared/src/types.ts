@@ -28,9 +28,7 @@ export type SuiteVisitStatus =
   | "pending"
   | "completed"
   | "blocked_unit"
-  | "no_access"
-  | "skipped"
-  | "in_progress";
+  | "no_access";
 
 export type DeficiencyCategory =
   | "not_cleaned"

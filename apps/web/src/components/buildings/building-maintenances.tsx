@@ -31,7 +31,7 @@ function MaintenanceRow({ maintenance }: { maintenance: BuildingMaintenance }) {
   const total = maintenance.suite_visits?.length ?? 0;
   const done =
     maintenance.suite_visits?.filter((v) =>
-      ["completed", "blocked_unit", "no_access", "skipped"].includes(v.status)
+      ["completed", "blocked_unit", "no_access"].includes(v.status)
     ).length ?? 0;
 
   return (

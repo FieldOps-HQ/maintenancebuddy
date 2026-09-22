@@ -14,8 +14,6 @@ export const SUITE_VISIT_STATUS_LABELS: Record<SuiteVisitStatus, string> = {
   completed: "Completed",
   blocked_unit: "Blocked Unit",
   no_access: "No Access",
-  skipped: "Skipped",
-  in_progress: "In Progress",
 };
 
 export const SUITE_VISIT_STATUS_COLORS: Record<SuiteVisitStatus, string> = {
@@ -23,8 +21,6 @@ export const SUITE_VISIT_STATUS_COLORS: Record<SuiteVisitStatus, string> = {
   completed: "bg-green-500 text-white",
   blocked_unit: "bg-red-500 text-white",
   no_access: "bg-yellow-500 text-white",
-  skipped: "bg-gray-400 text-white",
-  in_progress: "bg-blue-500 text-white",
 };
 
 export const MOBILE_STATUS_COLORS: Record<SuiteVisitStatus, string> = {
@@ -32,8 +28,6 @@ export const MOBILE_STATUS_COLORS: Record<SuiteVisitStatus, string> = {
   completed: "#22c55e",
   blocked_unit: "#ef4444",
   no_access: "#eab308",
-  skipped: "#9ca3af",
-  in_progress: "#3b82f6",
 };
 
 export const DEFICIENCY_LABELS: Record<DeficiencyCategory, string> = {

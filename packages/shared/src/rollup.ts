@@ -4,7 +4,6 @@ const UNIT_DONE_STATUSES: SuiteVisitStatus[] = [
   "completed",
   "blocked_unit",
   "no_access",
-  "skipped",
 ];
 
 export function isUnitVisitDone(status: SuiteVisitStatus): boolean {
@@ -24,8 +23,9 @@ export function getSuiteVisitRollupStatus(
     return "pending";
   }
 
+  // Partially complete suites stay pending (no in_progress visit status / blue cells).
   if (!statuses.every((status) => isUnitVisitDone(status))) {
-    return "in_progress";
+    return "pending";
   }
 
   const uniqueStatuses = new Set(statuses);

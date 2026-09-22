@@ -46,7 +46,6 @@ const TERMINAL_UNIT_STATUSES: SuiteVisitStatus[] = [
   "completed",
   "blocked_unit",
   "no_access",
-  "skipped",
 ];
 
 const BLOCKED_REASON_PROMPT = "Why is this unit blocked?";
@@ -291,7 +290,6 @@ export default function WizardScreen() {
       filter_changed: merged.filter_changed,
       operating_normally: merged.operating_normally,
       visited_by: user?.id,
-      ...(isEditing ? {} : { status: "in_progress" as const }),
     };
 
     const { error } = await supabase.from("hvac_unit_visits").update(updates).eq("id", unitVisitId!);

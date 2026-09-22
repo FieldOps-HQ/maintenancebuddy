@@ -241,10 +241,7 @@ export default function SuiteGridScreen() {
     const unitId = options?.unitId ?? visit.unitId;
     const unitName = options?.unitName ?? visit.unitName ?? "Unit";
     const unitStatus = options?.unitStatus ?? visit.unitStatus;
-    const edit =
-      unitStatus !== undefined &&
-      unitStatus !== "pending" &&
-      unitStatus !== "in_progress";
+    const edit = unitStatus !== undefined && unitStatus !== "pending";
     const base = `/maintenance/${maintenanceId}/wizard/${visit.id}?suiteNumber=${visit.suite_number}&suiteId=${visit.suite_id}&unitVisitId=${unitVisitId}&unitId=${unitId}&unitName=${encodeURIComponent(unitName)}`;
     const withEdit = edit ? `${base}&edit=true` : base;
     return options?.quickComplete ? `${withEdit}&quickComplete=true` : withEdit;
@@ -441,7 +438,7 @@ export default function SuiteGridScreen() {
   }
 
   function handleLongPress(visit: VisitTile) {
-    if (visit.status !== "pending" && visit.status !== "in_progress") return;
+    if (visit.status !== "pending") return;
     setSelectedVisit(visit);
   }
 

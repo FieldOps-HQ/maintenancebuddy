@@ -47,7 +47,7 @@ export default async function MaintenancesPage() {
           maintenances.map((m) => {
             const total = m.suite_visits?.length ?? 0;
             const done = m.suite_visits?.filter((v) =>
-              ["completed", "blocked_unit", "no_access", "skipped"].includes(v.status)
+              ["completed", "blocked_unit", "no_access"].includes(v.status)
             ).length ?? 0;
 
             return (

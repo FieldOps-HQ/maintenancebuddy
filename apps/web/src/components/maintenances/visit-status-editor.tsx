@@ -8,20 +8,17 @@ import { Button } from "@/components/ui/button";
 
 const ALL_STATUSES: SuiteVisitStatus[] = [
   "pending",
-  "in_progress",
   "completed",
   "no_access",
   "blocked_unit",
-  "skipped",
 ];
 
-/** Statuses that can be set on an individual HVAC unit (not suite-level). */
+/** Statuses that can be set on an individual HVAC unit. */
 export const UNIT_EDITABLE_STATUSES: SuiteVisitStatus[] = [
   "pending",
-  "in_progress",
   "completed",
+  "no_access",
   "blocked_unit",
-  "skipped",
 ];
 
 const REASON_STATUSES: SuiteVisitStatus[] = ["no_access", "blocked_unit"];

@@ -138,8 +138,7 @@ export default function SuiteUnitsScreen() {
         if (!unit.unitVisitId || !unit.unitId) return;
 
         autoRedirected.current = true;
-        const edit =
-          unit.status !== "pending" && unit.status !== "in_progress";
+        const edit = unit.status !== "pending";
         const base = `/maintenance/${maintenanceId}/wizard/${visitId}?suiteNumber=${suiteNumber}&suiteId=${suiteId}&unitVisitId=${unit.unitVisitId}&unitId=${unit.unitId}&unitName=${encodeURIComponent(unit.name)}`;
         router.replace(edit ? `${base}&edit=true` : base);
       }
@@ -154,9 +153,7 @@ export default function SuiteUnitsScreen() {
 
   const { completed, total } = countCompletedUnitVisits(units);
   const suiteStatus = getSuiteVisitRollupStatus(units.map((unit) => ({ status: unit.status })));
-  const canServiceUnits = units.some(
-    (unit) => unit.status === "pending" || unit.status === "in_progress"
-  );
+  const canServiceUnits = units.some((unit) => unit.status === "pending");
   const selectedFilterLabel = filterSizes.find((s) => formatFilterSize(s) === addUnitForm.filter_size);
 
   function selectFilterSize(size: FilterSizeOption) {
@@ -167,7 +164,7 @@ export default function SuiteUnitsScreen() {
   function handleUnitPress(unit: UnitTile) {
     const base = `/maintenance/${maintenanceId}/wizard/${visitId}?suiteNumber=${suiteNumber}&suiteId=${suiteId}&unitVisitId=${unit.unitVisitId}&unitId=${unit.unitId}&unitName=${encodeURIComponent(unit.name)}`;
 
-    if (unit.status === "pending" || unit.status === "in_progress") {
+    if (unit.status === "pending") {
       router.push(base);
       return;
     }

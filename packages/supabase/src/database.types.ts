@@ -388,7 +388,7 @@ export type Database = {
           id: string;
           maintenance_id: string;
           suite_id: string;
-          status: "pending" | "completed" | "blocked_unit" | "no_access" | "skipped" | "in_progress";
+          status: "pending" | "completed" | "blocked_unit" | "no_access";
           visited_at: string | null;
           notes: string | null;
           created_at: string;
@@ -398,7 +398,7 @@ export type Database = {
           id?: string;
           maintenance_id: string;
           suite_id: string;
-          status?: "pending" | "completed" | "blocked_unit" | "no_access" | "skipped" | "in_progress";
+          status?: "pending" | "completed" | "blocked_unit" | "no_access";
           visited_at?: string | null;
           notes?: string | null;
           created_at?: string;
@@ -408,7 +408,7 @@ export type Database = {
           id?: string;
           maintenance_id?: string;
           suite_id?: string;
-          status?: "pending" | "completed" | "blocked_unit" | "no_access" | "skipped" | "in_progress";
+          status?: "pending" | "completed" | "blocked_unit" | "no_access";
           visited_at?: string | null;
           notes?: string | null;
           created_at?: string;
@@ -436,7 +436,7 @@ export type Database = {
           id: string;
           suite_visit_id: string;
           hvac_unit_id: string;
-          status: "pending" | "completed" | "blocked_unit" | "no_access" | "skipped" | "in_progress";
+          status: "pending" | "completed" | "blocked_unit" | "no_access";
           cleaned: boolean | null;
           filter_changed: boolean | null;
           operating_normally: boolean | null;
@@ -450,7 +450,7 @@ export type Database = {
           id?: string;
           suite_visit_id: string;
           hvac_unit_id: string;
-          status?: "pending" | "completed" | "blocked_unit" | "no_access" | "skipped" | "in_progress";
+          status?: "pending" | "completed" | "blocked_unit" | "no_access";
           cleaned?: boolean | null;
           filter_changed?: boolean | null;
           operating_normally?: boolean | null;
@@ -464,7 +464,7 @@ export type Database = {
           id?: string;
           suite_visit_id?: string;
           hvac_unit_id?: string;
-          status?: "pending" | "completed" | "blocked_unit" | "no_access" | "skipped" | "in_progress";
+          status?: "pending" | "completed" | "blocked_unit" | "no_access";
           cleaned?: boolean | null;
           filter_changed?: boolean | null;
           operating_normally?: boolean | null;
@@ -577,7 +577,7 @@ export type Database = {
     Enums: {
       user_role: "admin" | "technician";
       maintenance_status: "scheduled" | "in_progress" | "completed" | "cancelled";
-      suite_visit_status: "pending" | "completed" | "blocked_unit" | "no_access" | "skipped" | "in_progress";
+      suite_visit_status: "pending" | "completed" | "blocked_unit" | "no_access";
       deficiency_category: "not_cleaned" | "filter_not_changed" | "not_operating" | "other";
     };
     CompositeTypes: Record<string, never>;
