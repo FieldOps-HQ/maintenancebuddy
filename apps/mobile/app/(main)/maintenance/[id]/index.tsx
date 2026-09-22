@@ -374,7 +374,9 @@ export default function SuiteGridScreen() {
   }
 
   async function handleQuickAction(status: "no_access" | "blocked_unit", note: string) {
-    if (!selectedVisit || selectedVisit.unitsTotal !== 1) return;
+    if (!selectedVisit) return;
+    // No access is suite-level (any unit count). Blocked unit is single-unit only.
+    if (status === "blocked_unit" && selectedVisit.unitsTotal !== 1) return;
 
     const visitId = selectedVisit.id;
 
@@ -440,8 +442,6 @@ export default function SuiteGridScreen() {
 
   function handleLongPress(visit: VisitTile) {
     if (visit.status !== "pending" && visit.status !== "in_progress") return;
-    // Quick actions only apply to single-unit suites.
-    if (visit.unitsTotal !== 1) return;
     setSelectedVisit(visit);
   }
 
@@ -568,25 +568,31 @@ export default function SuiteGridScreen() {
             ) : (
               <>
                 <Text style={styles.modalTitle}>Suite {selectedVisit?.suite_number}</Text>
-                <Text style={styles.modalSubtitle}>Quick action</Text>
-                <TouchableOpacity
-                  style={[styles.modalButton, { backgroundColor: colors.primary }]}
-                  onPress={handleCompleteQuickAction}
-                >
-                  <Text style={styles.modalButtonText}>Complete unit</Text>
-                </TouchableOpacity>
+                <Text style={styles.modalSubtitle}>
+                  {selectedVisit?.unitsTotal === 1 ? "Quick action" : "Suite quick action"}
+                </Text>
+                {selectedVisit?.unitsTotal === 1 ? (
+                  <TouchableOpacity
+                    style={[styles.modalButton, { backgroundColor: colors.primary }]}
+                    onPress={handleCompleteQuickAction}
+                  >
+                    <Text style={styles.modalButtonText}>Complete unit</Text>
+                  </TouchableOpacity>
+                ) : null}
                 <TouchableOpacity
                   style={[styles.modalButton, { backgroundColor: colors.warning }]}
                   onPress={() => startStatusReasonPrompt("no_access")}
                 >
                   <Text style={styles.modalButtonText}>No Access</Text>
                 </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.modalButton, { backgroundColor: colors.danger }]}
-                  onPress={() => startStatusReasonPrompt("blocked_unit")}
-                >
-                  <Text style={styles.modalButtonText}>Blocked Unit</Text>
-                </TouchableOpacity>
+                {selectedVisit?.unitsTotal === 1 ? (
+                  <TouchableOpacity
+                    style={[styles.modalButton, { backgroundColor: colors.danger }]}
+                    onPress={() => startStatusReasonPrompt("blocked_unit")}
+                  >
+                    <Text style={styles.modalButtonText}>Blocked Unit</Text>
+                  </TouchableOpacity>
+                ) : null}
                 <TouchableOpacity style={styles.modalCancel} onPress={closeQuickActions}>
                   <Text style={styles.modalCancelText}>Cancel</Text>
                 </TouchableOpacity>

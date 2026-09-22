@@ -49,10 +49,7 @@ const TERMINAL_UNIT_STATUSES: SuiteVisitStatus[] = [
   "skipped",
 ];
 
-const STATUS_REASON_PROMPTS: Record<"blocked_unit" | "no_access", string> = {
-  blocked_unit: "Why is this unit blocked?",
-  no_access: "Why was there no access to this unit?",
-};
+const BLOCKED_REASON_PROMPT = "Why is this unit blocked?";
 
 export default function WizardScreen() {
   const params = useLocalSearchParams<{
@@ -87,7 +84,7 @@ export default function WizardScreen() {
   const [showCamera, setShowCamera] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [showActions, setShowActions] = useState(false);
-  const [statusReasonPrompt, setStatusReasonPrompt] = useState<"blocked_unit" | "no_access" | null>(null);
+  const [statusReasonPrompt, setStatusReasonPrompt] = useState(false);
   const [statusReasonDraft, setStatusReasonDraft] = useState("");
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
@@ -195,13 +192,7 @@ export default function WizardScreen() {
   async function handleMarkBlocked() {
     setShowActions(false);
     setStatusReasonDraft("");
-    setStatusReasonPrompt("blocked_unit");
-  }
-
-  async function handleMarkNoAccess() {
-    setShowActions(false);
-    setStatusReasonDraft("");
-    setStatusReasonPrompt("no_access");
+    setStatusReasonPrompt(true);
   }
 
   async function handleStatusReasonContinue() {
@@ -214,14 +205,14 @@ export default function WizardScreen() {
     }
 
     await updateUnitStatus({
-      status: statusReasonPrompt,
+      status: "blocked_unit",
       visited_at: new Date().toISOString(),
       notes: reason,
       cleaned: null,
       filter_changed: null,
       operating_normally: null,
     });
-    setStatusReasonPrompt(null);
+    setStatusReasonPrompt(false);
     setStatusReasonDraft("");
     goToGrid();
   }
@@ -280,9 +271,6 @@ export default function WizardScreen() {
             </TouchableOpacity>
             <TouchableOpacity style={styles.modalAction} onPress={handleMarkBlocked}>
               <Text style={[styles.modalActionText, styles.modalActionDestructive]}>Mark blocked</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.modalAction} onPress={handleMarkNoAccess}>
-              <Text style={styles.modalActionText}>Mark no access</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.modalCancel} onPress={() => setShowActions(false)}>
               <Text style={styles.modalCancelText}>Cancel</Text>
@@ -364,7 +352,7 @@ export default function WizardScreen() {
 
   function handleBack() {
     if (statusReasonPrompt) {
-      setStatusReasonPrompt(null);
+      setStatusReasonPrompt(false);
       setStatusReasonDraft("");
       return;
     }
@@ -581,10 +569,8 @@ export default function WizardScreen() {
         >
           <WizardHeader onBack={handleBack} />
           <View style={styles.content}>
-            <Text style={styles.stepTitle}>
-              {statusReasonPrompt === "blocked_unit" ? "Mark blocked" : "Mark no access"}
-            </Text>
-            <Text style={styles.question}>{STATUS_REASON_PROMPTS[statusReasonPrompt]}</Text>
+            <Text style={styles.stepTitle}>Mark blocked</Text>
+            <Text style={styles.question}>{BLOCKED_REASON_PROMPT}</Text>
 
             <TextInput
               style={styles.noteInput}

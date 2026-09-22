@@ -15,6 +15,15 @@ const ALL_STATUSES: SuiteVisitStatus[] = [
   "skipped",
 ];
 
+/** Statuses that can be set on an individual HVAC unit (not suite-level). */
+export const UNIT_EDITABLE_STATUSES: SuiteVisitStatus[] = [
+  "pending",
+  "in_progress",
+  "completed",
+  "blocked_unit",
+  "skipped",
+];
+
 const REASON_STATUSES: SuiteVisitStatus[] = ["no_access", "blocked_unit"];
 
 export function VisitStatusEditor({
@@ -22,14 +31,19 @@ export function VisitStatusEditor({
   status,
   notes,
   disabled,
+  allowedStatuses = ALL_STATUSES,
   onSave,
 }: {
   label?: string;
   status: SuiteVisitStatus;
   notes: string | null;
   disabled?: boolean;
+  allowedStatuses?: SuiteVisitStatus[];
   onSave: (status: SuiteVisitStatus, notes: string | null) => Promise<void>;
 }) {
+  const statuses = allowedStatuses.includes(status)
+    ? allowedStatuses
+    : [status, ...allowedStatuses];
   const [draftStatus, setDraftStatus] = useState(status);
   const [draftNotes, setDraftNotes] = useState(notes ?? "");
   const [error, setError] = useState<string | null>(null);
@@ -71,7 +85,7 @@ export function VisitStatusEditor({
         disabled={disabled || saving}
         onChange={(event) => setDraftStatus(event.target.value as SuiteVisitStatus)}
       >
-        {ALL_STATUSES.map((value) => (
+        {statuses.map((value) => (
           <option key={value} value={value}>
             {SUITE_VISIT_STATUS_LABELS[value]}
           </option>

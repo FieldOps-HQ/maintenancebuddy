@@ -176,7 +176,9 @@ export default function SuiteUnitsScreen() {
   }
 
   async function handleQuickAction(status: "no_access" | "blocked_unit", note: string) {
-    if (!visitId || units.length !== 1) return;
+    if (!visitId) return;
+    // No access is suite-level (any unit count). Blocked unit is single-unit only.
+    if (status === "blocked_unit" && units.length !== 1) return;
 
     try {
       await applyAllUnitsAccessStatus(supabase, visitId, status, note);
@@ -287,11 +289,9 @@ export default function SuiteUnitsScreen() {
             <TouchableOpacity style={styles.addButton} onPress={() => setShowAddUnit(true)}>
               <Text style={styles.addButtonText}>+ Add unit</Text>
             </TouchableOpacity>
-            {units.length === 1 ? (
-              <TouchableOpacity style={styles.quickActionLink} onPress={() => setShowQuickActions(true)}>
-                <Text style={styles.quickActionText}>Suite quick actions</Text>
-              </TouchableOpacity>
-            ) : null}
+            <TouchableOpacity style={styles.quickActionLink} onPress={() => setShowQuickActions(true)}>
+              <Text style={styles.quickActionText}>Suite quick actions</Text>
+            </TouchableOpacity>
           </>
         ) : null}
       </ScreenHeader>
@@ -371,19 +371,23 @@ export default function SuiteUnitsScreen() {
             ) : (
               <>
                 <Text style={styles.modalTitle}>Suite {suiteNumber}</Text>
-                <Text style={styles.modalSubtitle}>Mark entire suite</Text>
+                <Text style={styles.modalSubtitle}>
+                  {units.length === 1 ? "Mark entire suite" : "Mark suite (no access)"}
+                </Text>
                 <TouchableOpacity
                   style={[styles.modalButton, { backgroundColor: colors.warning }]}
                   onPress={() => startStatusReasonPrompt("no_access")}
                 >
                   <Text style={styles.modalButtonText}>No Access</Text>
                 </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.modalButton, { backgroundColor: colors.danger }]}
-                  onPress={() => startStatusReasonPrompt("blocked_unit")}
-                >
-                  <Text style={styles.modalButtonText}>Blocked Unit</Text>
-                </TouchableOpacity>
+                {units.length === 1 ? (
+                  <TouchableOpacity
+                    style={[styles.modalButton, { backgroundColor: colors.danger }]}
+                    onPress={() => startStatusReasonPrompt("blocked_unit")}
+                  >
+                    <Text style={styles.modalButtonText}>Blocked Unit</Text>
+                  </TouchableOpacity>
+                ) : null}
                 <TouchableOpacity style={styles.modalCancel} onPress={() => setShowQuickActions(false)}>
                   <Text style={styles.modalCancelText}>Cancel</Text>
                 </TouchableOpacity>

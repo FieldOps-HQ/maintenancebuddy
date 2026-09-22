@@ -20,7 +20,7 @@ import {
   isLeavingCompletedStatus,
   resetSuiteVisitCompletionData,
 } from "@/lib/reset-suite-visit-completion";
-import { VisitStatusEditor } from "@/components/maintenances/visit-status-editor";
+import { VisitStatusEditor, UNIT_EDITABLE_STATUSES } from "@/components/maintenances/visit-status-editor";
 import { X } from "lucide-react";
 
 export interface UnitVisitDetailData {
@@ -227,6 +227,7 @@ export function SuiteVisitDetailDialog({
                 status={unitVisit.status}
                 notes={unitVisit.notes}
                 disabled={refreshing}
+                allowedStatuses={UNIT_EDITABLE_STATUSES}
                 onSave={(status, notes) => handleUnitStatusSave(unitVisit, status, notes)}
               />
 
