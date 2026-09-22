@@ -35,6 +35,29 @@ export async function GET(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
+  const organizationId = maintenance.building?.organization_id;
+  let organizationName = "MaintenanceBuddy";
+  let logoUrl: string | null = null;
+
+  if (organizationId) {
+    const { data: organization } = await supabase
+      .from("organizations")
+      .select("name, logo_path")
+      .eq("id", organizationId)
+      .single();
+
+    if (organization?.name) {
+      organizationName = organization.name;
+    }
+
+    if (organization?.logo_path) {
+      const { data: signed } = await supabase.storage
+        .from("organization-logos")
+        .createSignedUrl(organization.logo_path, 3600);
+      logoUrl = signed?.signedUrl ?? null;
+    }
+  }
+
   const { data: filterSummary } = await supabase
     .from("maintenance_filter_summary")
     .select("*")
@@ -42,6 +65,10 @@ export async function GET(
 
   const buffer = await renderToBuffer(
     MaintenanceReportDocument({
+      organization: {
+        name: organizationName,
+        logoUrl,
+      },
       maintenance,
       filterSummary: filterSummary ?? [],
     })

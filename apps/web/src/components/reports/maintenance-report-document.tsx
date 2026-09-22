@@ -1,4 +1,4 @@
-import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
+import { Document, Page, Text, View, StyleSheet, Image } from "@react-pdf/renderer";
 import {
   SUITE_VISIT_STATUS_LABELS,
   formatBuildingAddress,
@@ -10,6 +10,9 @@ import { collectVisitIssues } from "@/lib/visit-issues";
 
 const styles = StyleSheet.create({
   page: { padding: 40, fontSize: 10, fontFamily: "Helvetica" },
+  brandRow: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 12 },
+  logo: { width: 48, height: 48, objectFit: "contain" },
+  companyName: { fontSize: 14, fontWeight: "bold", color: "#111" },
   title: { fontSize: 18, marginBottom: 4, fontWeight: "bold" },
   subtitle: { fontSize: 11, color: "#666", marginBottom: 20 },
   section: { marginBottom: 16 },
@@ -35,6 +38,10 @@ interface ReportUnitRow {
 }
 
 interface ReportProps {
+  organization: {
+    name: string;
+    logoUrl: string | null;
+  };
   maintenance: {
     start_date: string;
     end_date: string;
@@ -109,7 +116,7 @@ function buildUnitRows(maintenance: ReportProps["maintenance"]): ReportUnitRow[]
   );
 }
 
-export function MaintenanceReportDocument({ maintenance, filterSummary }: ReportProps) {
+export function MaintenanceReportDocument({ organization, maintenance, filterSummary }: ReportProps) {
   const visits = maintenance.suite_visits ?? [];
   const completed = visits.filter((visit) => {
     const unitVisits = visit.hvac_unit_visits ?? [];
@@ -127,6 +134,13 @@ export function MaintenanceReportDocument({ maintenance, filterSummary }: Report
   return (
     <Document>
       <Page size="A4" style={styles.page}>
+        <View style={styles.brandRow}>
+          {organization.logoUrl ? (
+            <Image src={organization.logoUrl} style={styles.logo} />
+          ) : null}
+          <Text style={styles.companyName}>{organization.name}</Text>
+        </View>
+
         <Text style={styles.title}>HVAC Maintenance Report</Text>
         <Text style={styles.subtitle}>
           {maintenance.building?.name} —{" "}

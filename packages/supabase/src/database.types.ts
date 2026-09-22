@@ -13,16 +13,19 @@ export type Database = {
         Row: {
           id: string;
           name: string;
+          logo_path: string | null;
           created_at: string;
         };
         Insert: {
           id?: string;
           name: string;
+          logo_path?: string | null;
           created_at?: string;
         };
         Update: {
           id?: string;
           name?: string;
+          logo_path?: string | null;
           created_at?: string;
         };
         Relationships: [];

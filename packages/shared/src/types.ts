@@ -5,6 +5,7 @@ export type InviteStatus = "pending" | "accepted" | "revoked";
 export interface Organization {
   id: string;
   name: string;
+  logo_path: string | null;
   created_at: string;
 }
 
