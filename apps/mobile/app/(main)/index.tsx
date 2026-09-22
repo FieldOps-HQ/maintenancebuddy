@@ -130,8 +130,16 @@ export default function MaintenanceListScreen() {
               <Text style={styles.progress}>
                 {item.completed}/{item.total} suites
               </Text>
-              <View style={[styles.badge, item.status === "in_progress" && styles.badgeActive]}>
-                <Text style={styles.badgeText}>{item.status.replace("_", " ")}</Text>
+              <View
+                style={[
+                  styles.badge,
+                  item.status === "in_progress" && styles.badgeActive,
+                  item.status === "completed" && styles.badgeCompleted,
+                ]}
+              >
+                <Text style={styles.badgeText}>
+                  {item.status === "completed" ? "Completed · Locked" : item.status.replace("_", " ")}
+                </Text>
               </View>
             </View>
           </TouchableOpacity>
@@ -165,6 +173,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
   },
   badgeActive: { backgroundColor: colors.amber50 },
+  badgeCompleted: { backgroundColor: colors.slate100 },
   badgeText: { fontSize: 12, fontWeight: "500", textTransform: "capitalize", color: colors.slate700 },
   empty: { textAlign: "center", color: colors.textSecondary, marginTop: 40, fontSize: 16 },
 });

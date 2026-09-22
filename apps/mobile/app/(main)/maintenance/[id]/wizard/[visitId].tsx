@@ -85,11 +85,34 @@ export default function WizardScreen() {
   const [showActions, setShowActions] = useState(false);
   const [statusReasonPrompt, setStatusReasonPrompt] = useState(false);
   const [statusReasonDraft, setStatusReasonDraft] = useState("");
+  const [isLocked, setIsLocked] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
   const quickCompleteHandled = useRef(false);
 
   const currentStep = WIZARD_STEPS[step];
+
+  useEffect(() => {
+    if (!maintenanceId) return;
+
+    async function loadMaintenanceLock() {
+      const { data } = await supabase
+        .from("maintenances")
+        .select("status")
+        .eq("id", maintenanceId!)
+        .single();
+
+      const status = data?.status;
+      const locked = status === "completed" || status === "cancelled";
+      setIsLocked(locked);
+      if (locked) {
+        setIsEditing(true);
+        setShowCamera(false);
+      }
+    }
+
+    loadMaintenanceLock();
+  }, [maintenanceId]);
 
   useEffect(() => {
     if (!unitVisitId || params.edit !== "true") return;
@@ -163,12 +186,13 @@ export default function WizardScreen() {
     if (quickCompleteHandled.current) return;
     if (params.quickComplete !== "true") return;
     if (params.edit === "true") return;
+    if (isLocked) return;
     if (!unitVisitId) return;
     if (loadingVisit) return;
 
     quickCompleteHandled.current = true;
     void runQuickComplete();
-  }, [params.quickComplete, params.edit, unitVisitId, loadingVisit]);
+  }, [params.quickComplete, params.edit, unitVisitId, loadingVisit, isLocked]);
 
   async function updateUnitStatus(updates: {
     status: SuiteVisitStatus;
@@ -189,6 +213,10 @@ export default function WizardScreen() {
   }
 
   async function handleMarkBlocked() {
+    if (isLocked) {
+      Alert.alert("Locked", "This maintenance is completed and can only be edited by an admin.");
+      return;
+    }
     setShowActions(false);
     setStatusReasonDraft("");
     setStatusReasonPrompt(true);
@@ -196,6 +224,7 @@ export default function WizardScreen() {
 
   async function handleStatusReasonContinue() {
     if (!statusReasonPrompt) return;
+    if (isLocked) return;
 
     const reason = statusReasonDraft.trim();
     if (!reason) {
@@ -235,6 +264,10 @@ export default function WizardScreen() {
   }
 
   async function handleCompleteUnit() {
+    if (isLocked) {
+      Alert.alert("Locked", "This maintenance is completed and can only be edited by an admin.");
+      return;
+    }
     setShowActions(false);
     await runQuickComplete();
   }
@@ -243,17 +276,19 @@ export default function WizardScreen() {
     return (
       <ScreenHeader
         title={`Suite ${suiteNumber}`}
-        subtitle={`${unitName}${isEditing ? " · Editing" : ""}`}
+        subtitle={`${unitName}${isLocked ? " · View only" : isEditing ? " · Editing" : ""}`}
         showBack
         onBack={onBack}
         rightAction={
-          <TouchableOpacity
-            style={styles.actionsButton}
-            onPress={() => setShowActions(true)}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Text style={styles.actionsText}>⋯</Text>
-          </TouchableOpacity>
+          isLocked ? undefined : (
+            <TouchableOpacity
+              style={styles.actionsButton}
+              onPress={() => setShowActions(true)}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Text style={styles.actionsText}>⋯</Text>
+            </TouchableOpacity>
+          )
         }
       />
     );
@@ -281,6 +316,8 @@ export default function WizardScreen() {
   }
 
   async function saveProgress(partial: WizardAnswers) {
+    if (isLocked) return;
+
     const merged = { ...answers, ...partial };
     setAnswers(merged);
 
@@ -310,6 +347,7 @@ export default function WizardScreen() {
   }
 
   async function handleYes() {
+    if (isLocked) return;
     if (currentStep.key === "photo") return;
 
     const key = currentStep.key as AnswerKey;
@@ -323,6 +361,7 @@ export default function WizardScreen() {
   }
 
   function handleNo() {
+    if (isLocked) return;
     if (currentStep.key === "photo") return;
 
     const key = currentStep.key as AnswerKey;
@@ -375,6 +414,11 @@ export default function WizardScreen() {
   }
 
   async function handleComplete() {
+    if (isLocked) {
+      goToGrid();
+      return;
+    }
+
     const hasNewPhoto = photoUri && !photoUri.startsWith("http");
 
     if (!photoUri || (!hasNewPhoto && !hasExistingPhoto)) {
@@ -513,35 +557,50 @@ export default function WizardScreen() {
         <View style={styles.screen}>
           <WizardHeader onBack={() => router.back()} />
           <View style={styles.content}>
+            {isLocked ? (
+              <View style={styles.lockedBanner}>
+                <Text style={styles.lockedBannerText}>
+                  This maintenance is completed — view only. Ask an admin to make changes.
+                </Text>
+              </View>
+            ) : null}
             <Text style={styles.stepIndicator}>Step 4 of 4</Text>
             <Text style={styles.stepTitle}>Photo</Text>
             <Text style={styles.question}>Photo Preview</Text>
             <Image source={{ uri: photoUri }} style={styles.preview} />
             <View style={styles.buttonRow}>
-            <TouchableOpacity
-              style={styles.noButton}
-              disabled={submitting}
-              onPress={() => {
-                setPhotoUri(null);
-                setPhotoBase64(null);
-                setHasExistingPhoto(false);
-                setShowCamera(true);
-              }}
-            >
-              <Text style={styles.noButtonText}>Retake</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.yesButton, submitting && styles.buttonDisabled]}
-              onPress={handleComplete}
-              disabled={submitting}
-            >
-              {submitting ? (
-                <ActivityIndicator color="#fff" />
+              {isLocked ? (
+                <TouchableOpacity style={styles.yesButton} onPress={goToGrid}>
+                  <Text style={styles.buttonText}>Done</Text>
+                </TouchableOpacity>
               ) : (
-                <Text style={styles.buttonText}>{isEditing ? "Save Changes ✓" : "Complete ✓"}</Text>
+                <>
+                  <TouchableOpacity
+                    style={styles.noButton}
+                    disabled={submitting}
+                    onPress={() => {
+                      setPhotoUri(null);
+                      setPhotoBase64(null);
+                      setHasExistingPhoto(false);
+                      setShowCamera(true);
+                    }}
+                  >
+                    <Text style={styles.noButtonText}>Retake</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.yesButton, submitting && styles.buttonDisabled]}
+                    onPress={handleComplete}
+                    disabled={submitting}
+                  >
+                    {submitting ? (
+                      <ActivityIndicator color="#fff" />
+                    ) : (
+                      <Text style={styles.buttonText}>{isEditing ? "Save Changes ✓" : "Complete ✓"}</Text>
+                    )}
+                  </TouchableOpacity>
+                </>
               )}
-            </TouchableOpacity>
-          </View>
+            </View>
           </View>
         </View>
         {renderModals()}
@@ -633,6 +692,13 @@ export default function WizardScreen() {
         <WizardHeader onBack={handleBack} />
 
         <View style={styles.content}>
+        {isLocked ? (
+          <View style={styles.lockedBanner}>
+            <Text style={styles.lockedBannerText}>
+              This maintenance is completed — view only. Ask an admin to make changes.
+            </Text>
+          </View>
+        ) : null}
         <Text style={styles.stepIndicator}>Step {step + 1} of 4</Text>
         <Text style={styles.stepTitle}>{currentStep.title}</Text>
         <Text style={styles.question}>{currentStep.question}</Text>
@@ -646,27 +712,37 @@ export default function WizardScreen() {
           </Text>
         )}
 
-        {currentStep?.key !== "photo" && (
+        {isLocked ? (
           <View style={styles.buttonRow}>
-            <TouchableOpacity style={styles.noButton} onPress={handleNo}>
-              <Text style={styles.noButtonText}>No</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.yesButton} onPress={handleYes}>
-              <Text style={styles.buttonText}>Yes</Text>
+            <TouchableOpacity style={styles.yesButton} onPress={goToGrid}>
+              <Text style={styles.buttonText}>Done</Text>
             </TouchableOpacity>
           </View>
-        )}
+        ) : (
+          <>
+            {currentStep?.key !== "photo" && (
+              <View style={styles.buttonRow}>
+                <TouchableOpacity style={styles.noButton} onPress={handleNo}>
+                  <Text style={styles.noButtonText}>No</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.yesButton} onPress={handleYes}>
+                  <Text style={styles.buttonText}>Yes</Text>
+                </TouchableOpacity>
+              </View>
+            )}
 
-        {isEditing && step < 3 && photoUri && (
-          <TouchableOpacity style={styles.skipToPhotoButton} onPress={() => setStep(3)}>
-            <Text style={styles.skipToPhotoText}>Skip to photo review</Text>
-          </TouchableOpacity>
-        )}
+            {isEditing && step < 3 && photoUri && (
+              <TouchableOpacity style={styles.skipToPhotoButton} onPress={() => setStep(3)}>
+                <Text style={styles.skipToPhotoText}>Skip to photo review</Text>
+              </TouchableOpacity>
+            )}
 
-        {isEditing && step === 3 && !photoUri && (
-          <TouchableOpacity style={styles.skipToPhotoButton} onPress={() => setShowCamera(true)}>
-            <Text style={styles.skipToPhotoText}>Take new photo</Text>
-          </TouchableOpacity>
+            {isEditing && step === 3 && !photoUri && (
+              <TouchableOpacity style={styles.skipToPhotoButton} onPress={() => setShowCamera(true)}>
+                <Text style={styles.skipToPhotoText}>Take new photo</Text>
+              </TouchableOpacity>
+            )}
+          </>
         )}
         </View>
       </View>
@@ -686,6 +762,16 @@ const styles = StyleSheet.create({
   stepTitle: { fontSize: 22, fontWeight: "700", color: colors.text, marginBottom: 12 },
   question: { fontSize: 28, fontWeight: "600", color: colors.text, marginBottom: 40, lineHeight: 36 },
   currentAnswer: { fontSize: 16, color: colors.textSecondary, marginTop: -24, marginBottom: 24 },
+  lockedBanner: {
+    marginBottom: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: colors.amber50,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.warning,
+  },
+  lockedBannerText: { fontSize: 13, color: colors.amber800, fontWeight: "500" },
   buttonRow: { flexDirection: "row", gap: 16, marginTop: "auto", marginBottom: 40 },
   yesButton: {
     flex: 1,

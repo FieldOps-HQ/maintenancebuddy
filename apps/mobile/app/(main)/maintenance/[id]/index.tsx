@@ -99,6 +99,9 @@ export default function SuiteGridScreen() {
   const [contacts, setContacts] = useState<BuildingContact[]>([]);
   const [showContacts, setShowContacts] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [maintenanceStatus, setMaintenanceStatus] = useState<string>("scheduled");
+  const isLocked =
+    maintenanceStatus === "completed" || maintenanceStatus === "cancelled";
 
   const loadData = useCallback(async () => {
     if (!maintenanceId) return;
@@ -107,6 +110,7 @@ export default function SuiteGridScreen() {
       supabase
         .from("maintenances")
         .select(`
+          status,
           building_id,
           building:buildings(
             name,
@@ -134,6 +138,7 @@ export default function SuiteGridScreen() {
     ]);
 
     setFilterSizes(sizes ?? []);
+    setMaintenanceStatus(maintenance?.status ?? "scheduled");
     setBuildingName(maintenance?.building?.name ?? "");
     const building = maintenance?.building;
     setBuildingAddress(
@@ -213,10 +218,15 @@ export default function SuiteGridScreen() {
   ).length;
 
   const showSearchAddPrompt =
+    !isLocked &&
     search.trim().length > 0 &&
     !visits.some((v) => v.suite_number.toLowerCase() === search.trim().toLowerCase());
 
   function openAddUnitModal(prefillSuiteNumber?: string) {
+    if (isLocked) {
+      Alert.alert("Locked", "This maintenance is completed and can only be edited by an admin.");
+      return;
+    }
     setAddUnitForm({
       ...emptyAddUnitForm,
       suite_number: prefillSuiteNumber ?? "",
@@ -279,6 +289,10 @@ export default function SuiteGridScreen() {
   }
 
   async function handleAddUnit() {
+    if (isLocked) {
+      Alert.alert("Locked", "This maintenance is completed and can only be edited by an admin.");
+      return;
+    }
     if (!buildingId || !maintenanceId) {
       Alert.alert("Error", "Missing building information.");
       return;
@@ -382,6 +396,11 @@ export default function SuiteGridScreen() {
   }
 
   async function handleQuickAction(status: "no_access" | "blocked_unit", note: string) {
+    if (isLocked) {
+      Alert.alert("Locked", "This maintenance is completed and can only be edited by an admin.");
+      closeQuickActions();
+      return;
+    }
     if (!selectedVisit) return;
     // No access is suite-level (any unit count). Blocked unit is single-unit only.
     if (status === "blocked_unit" && selectedVisit.unitsTotal !== 1) return;
@@ -428,6 +447,11 @@ export default function SuiteGridScreen() {
   }
 
   async function handleCompleteQuickAction() {
+    if (isLocked) {
+      Alert.alert("Locked", "This maintenance is completed and can only be edited by an admin.");
+      closeQuickActions();
+      return;
+    }
     if (!selectedVisit) return;
 
     const visit = selectedVisit;
@@ -441,6 +465,8 @@ export default function SuiteGridScreen() {
   }
 
   function handleSuitePress(visit: VisitTile) {
+    if (isLocked) return;
+
     if (visit.unitsTotal === 1 && visit.unitVisitId && visit.unitId) {
       router.push(wizardRoute(visit));
       return;
@@ -449,6 +475,7 @@ export default function SuiteGridScreen() {
   }
 
   function handleLongPress(visit: VisitTile) {
+    if (isLocked) return;
     if (visit.status !== "pending") return;
     setSelectedVisit(visit);
   }
@@ -460,6 +487,14 @@ export default function SuiteGridScreen() {
         showBack
         subtitle={`${completed}/${visits.length} suites complete`}
       >
+        {isLocked ? (
+          <View style={styles.lockedBanner}>
+            <Text style={styles.lockedBannerText}>
+              {maintenanceStatus === "cancelled" ? "Cancelled" : "Completed"} — view only. Ask an admin
+              to make changes.
+            </Text>
+          </View>
+        ) : null}
         {buildingAddress ? (
           <TouchableOpacity
             onPress={() => Linking.openURL(`https://maps.google.com/?q=${encodeURIComponent(buildingAddress)}`)}
@@ -476,9 +511,11 @@ export default function SuiteGridScreen() {
               Contacts{contacts.length > 0 ? ` (${contacts.length})` : ""}
             </Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.addButton} onPress={() => openAddUnitModal()}>
-            <Text style={styles.addButtonText}>+ Add unit</Text>
-          </TouchableOpacity>
+          {!isLocked ? (
+            <TouchableOpacity style={styles.addButton} onPress={() => openAddUnitModal()}>
+              <Text style={styles.addButtonText}>+ Add unit</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
       </ScreenHeader>
 
@@ -524,6 +561,8 @@ export default function SuiteGridScreen() {
             onPress={() => handleSuitePress(item)}
             onLongPress={() => handleLongPress(item)}
             delayLongPress={400}
+            disabled={isLocked}
+            activeOpacity={isLocked ? 1 : 0.7}
           >
             <Text style={[styles.tileText, item.status === "pending" ? styles.tileTextDark : styles.tileTextLight]}>
               {item.suite_number}
@@ -759,6 +798,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: radius.sm,
+  },
+  lockedBanner: {
+    marginBottom: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: colors.amber50,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.warning,
+  },
+  lockedBannerText: {
+    fontSize: 13,
+    color: colors.amber800,
+    fontWeight: "500",
   },
   addButtonText: { color: colors.white, fontSize: 14, fontWeight: "600" },
   search: {

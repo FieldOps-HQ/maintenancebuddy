@@ -88,12 +88,20 @@ export default function SuiteUnitsScreen() {
   const [statusReasonPrompt, setStatusReasonPrompt] = useState<"blocked_unit" | "no_access" | null>(null);
   const [statusReasonDraft, setStatusReasonDraft] = useState("");
   const [refreshing, setRefreshing] = useState(false);
+  const [maintenanceStatus, setMaintenanceStatus] = useState<string>("scheduled");
   const autoRedirected = useRef(false);
+  const isLocked =
+    maintenanceStatus === "completed" || maintenanceStatus === "cancelled";
 
-  const loadData = useCallback(async (): Promise<UnitTile[]> => {
-    if (!visitId) return [];
+  const loadData = useCallback(async (): Promise<{ units: UnitTile[]; locked: boolean }> => {
+    if (!visitId) return { units: [], locked: false };
 
-    const [{ data: unitVisits }, { data: sizes }] = await Promise.all([
+    const [{ data: suiteVisit }, { data: unitVisits }, { data: sizes }] = await Promise.all([
+      supabase
+        .from("suite_visits")
+        .select("maintenance:maintenances(status)")
+        .eq("id", visitId)
+        .single(),
       supabase
         .from("hvac_unit_visits")
         .select("id, status, hvac_unit:hvac_units(id, name, filter_size)")
@@ -106,19 +114,14 @@ export default function SuiteUnitsScreen() {
         .order("thickness_in"),
     ]);
 
+    const maintenance = Array.isArray(suiteVisit?.maintenance)
+      ? suiteVisit?.maintenance[0]
+      : suiteVisit?.maintenance;
+    const status = maintenance?.status ?? "scheduled";
+    setMaintenanceStatus(status);
     setFilterSizes(sizes ?? []);
-    setUnits(
-      (unitVisits ?? []).map((uv) => ({
-        id: uv.hvac_unit?.id ?? uv.id,
-        unitVisitId: uv.id,
-        unitId: uv.hvac_unit?.id ?? "",
-        name: uv.hvac_unit?.name ?? "Unit",
-        status: uv.status as SuiteVisitStatus,
-        filter_size: uv.hvac_unit?.filter_size ?? null,
-      }))
-    );
 
-    return (unitVisits ?? []).map((uv) => ({
+    const mapped = (unitVisits ?? []).map((uv) => ({
       id: uv.hvac_unit?.id ?? uv.id,
       unitVisitId: uv.id,
       unitId: uv.hvac_unit?.id ?? "",
@@ -126,6 +129,13 @@ export default function SuiteUnitsScreen() {
       status: uv.status as SuiteVisitStatus,
       filter_size: uv.hvac_unit?.filter_size ?? null,
     }));
+
+    setUnits(mapped);
+
+    return {
+      units: mapped,
+      locked: status === "completed" || status === "cancelled",
+    };
   }, [visitId]);
 
   useFocusEffect(
@@ -133,8 +143,8 @@ export default function SuiteUnitsScreen() {
       let cancelled = false;
 
       async function run() {
-        const loadedUnits = await loadData();
-        if (cancelled || autoRedirected.current || loadedUnits.length !== 1) return;
+        const { units: loadedUnits, locked } = await loadData();
+        if (cancelled || autoRedirected.current || locked || loadedUnits.length !== 1) return;
 
         const unit = loadedUnits[0];
         if (!unit.unitVisitId || !unit.unitId) return;
@@ -164,7 +174,7 @@ export default function SuiteUnitsScreen() {
 
   const { completed, total } = countCompletedUnitVisits(units);
   const suiteStatus = getSuiteVisitRollupStatus(units.map((unit) => ({ status: unit.status })));
-  const canServiceUnits = units.some((unit) => unit.status === "pending");
+  const canServiceUnits = !isLocked && units.some((unit) => unit.status === "pending");
   const selectedFilterLabel = filterSizes.find((s) => formatFilterSize(s) === addUnitForm.filter_size);
 
   function selectFilterSize(size: FilterSizeOption) {
@@ -173,6 +183,8 @@ export default function SuiteUnitsScreen() {
   }
 
   function handleUnitPress(unit: UnitTile) {
+    if (isLocked) return;
+
     const base = `/maintenance/${maintenanceId}/wizard/${visitId}?suiteNumber=${suiteNumber}&suiteId=${suiteId}&unitVisitId=${unit.unitVisitId}&unitId=${unit.unitId}&unitName=${encodeURIComponent(unit.name)}`;
 
     if (unit.status === "pending") {
@@ -184,6 +196,10 @@ export default function SuiteUnitsScreen() {
   }
 
   async function handleQuickAction(status: "no_access" | "blocked_unit", note: string) {
+    if (isLocked) {
+      Alert.alert("Locked", "This maintenance is completed and can only be edited by an admin.");
+      return;
+    }
     if (!visitId) return;
     // No access is suite-level (any unit count). Blocked unit is single-unit only.
     if (status === "blocked_unit" && units.length !== 1) return;
@@ -221,6 +237,10 @@ export default function SuiteUnitsScreen() {
   }
 
   async function handleAddUnit() {
+    if (isLocked) {
+      Alert.alert("Locked", "This maintenance is completed and can only be edited by an admin.");
+      return;
+    }
     if (!suiteId) {
       Alert.alert("Error", "Missing suite information.");
       return;
@@ -292,6 +312,13 @@ export default function SuiteUnitsScreen() {
         subtitle={`${completed}/${total} units complete · ${SUITE_VISIT_STATUS_LABELS[suiteStatus]}`}
         showBack
       >
+        {isLocked ? (
+          <View style={styles.lockedBanner}>
+            <Text style={styles.lockedBannerText}>
+              Maintenance completed — view only. Ask an admin to make changes.
+            </Text>
+          </View>
+        ) : null}
         {canServiceUnits ? (
           <>
             <TouchableOpacity style={styles.addButton} onPress={() => setShowAddUnit(true)}>
@@ -304,7 +331,7 @@ export default function SuiteUnitsScreen() {
         ) : null}
       </ScreenHeader>
 
-      {!canServiceUnits ? (
+      {!canServiceUnits && !isLocked ? (
         <View style={styles.blockedBanner}>
           <Text style={styles.blockedBannerText}>
             This suite is marked {SUITE_VISIT_STATUS_LABELS[suiteStatus]}. Unit maintenance is not required.
@@ -322,6 +349,8 @@ export default function SuiteUnitsScreen() {
             <TouchableOpacity
               style={[styles.unitCard, { borderLeftColor: MOBILE_STATUS_COLORS[item.status] }]}
               onPress={() => handleUnitPress(item)}
+              disabled={isLocked}
+              activeOpacity={isLocked ? 1 : 0.7}
             >
               <View style={styles.unitCardHeader}>
                 <Text style={styles.unitName}>{item.name}</Text>
@@ -509,6 +538,16 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
   },
   blockedBannerText: { color: colors.amber800, fontSize: 14 },
+  lockedBanner: {
+    marginBottom: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: colors.amber50,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.warning,
+  },
+  lockedBannerText: { fontSize: 13, color: colors.amber800, fontWeight: "500" },
   list: { padding: 16, gap: 12 },
   unitCard: {
     backgroundColor: colors.surface,
