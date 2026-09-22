@@ -6,17 +6,14 @@ import {
   DEFICIENCY_LABELS,
   MOBILE_STATUS_COLORS,
   SUITE_VISIT_STATUS_LABELS,
+  getSuiteVisitRollupStatus,
   type DeficiencyCategory,
   type SuiteVisitStatus,
 } from "@maintenancebuddy/shared";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatDate } from "@/lib/utils";
-import {
-  SUITE_VISIT_SELECT,
-  buildUnitVisitStatusUpdates,
-  mapSuiteVisitRow,
-} from "@/lib/suite-visit-mapper";
+import { buildUnitVisitStatusUpdates } from "@/lib/suite-visit-mapper";
 import {
   isLeavingCompletedStatus,
   resetSuiteVisitCompletionData,
@@ -145,19 +142,102 @@ function UnitPhoto({ unitVisit }: { unitVisit: UnitVisitDetailData }) {
   );
 }
 
-export async function fetchSuiteVisit(suiteVisitId: string) {
+export async function fetchSuiteVisit(suiteVisitId: string): Promise<SuiteVisitDetailData> {
   const supabase = createClient();
-  const { data, error } = await supabase
-    .from("suite_visits")
-    .select(SUITE_VISIT_SELECT)
-    .eq("id", suiteVisitId)
-    .single();
 
-  if (error || !data) {
-    throw new Error(error?.message ?? "Could not refresh suite visit");
+  const [{ data: suiteVisit, error: suiteVisitError }, { data: unitVisits, error: unitVisitsError }] =
+    await Promise.all([
+      supabase
+        .from("suite_visits")
+        .select("id, status, visited_at, suite_id, suite:suites(suite_number, floor)")
+        .eq("id", suiteVisitId)
+        .single(),
+      supabase
+        .from("hvac_unit_visits")
+        .select(
+          "id, status, cleaned, filter_changed, operating_normally, visited_at, notes, hvac_unit_id"
+        )
+        .eq("suite_visit_id", suiteVisitId),
+    ]);
+
+  if (suiteVisitError || !suiteVisit) {
+    throw new Error(suiteVisitError?.message ?? "Could not load suite visit");
+  }
+  if (unitVisitsError) {
+    throw new Error(unitVisitsError.message);
   }
 
-  return mapSuiteVisitRow(data);
+  const unitIds = [...new Set((unitVisits ?? []).map((uv) => uv.hvac_unit_id).filter(Boolean))];
+  const unitVisitIds = (unitVisits ?? []).map((uv) => uv.id);
+
+  const [{ data: units }, { data: deficiencies }, { data: photos }] = await Promise.all([
+    unitIds.length > 0
+      ? supabase
+          .from("hvac_units")
+          .select("id, name, filter_size, filter_quantity")
+          .in("id", unitIds)
+      : Promise.resolve({ data: [] as { id: string; name: string; filter_size: string | null; filter_quantity: number | null }[] }),
+    unitVisitIds.length > 0
+      ? supabase
+          .from("deficiencies")
+          .select("id, category, description, hvac_unit_visit_id")
+          .in("hvac_unit_visit_id", unitVisitIds)
+      : Promise.resolve({ data: [] as { id: string; category: string; description: string; hvac_unit_visit_id: string }[] }),
+    unitVisitIds.length > 0
+      ? supabase
+          .from("visit_photos")
+          .select("id, storage_path, hvac_unit_visit_id")
+          .in("hvac_unit_visit_id", unitVisitIds)
+      : Promise.resolve({ data: [] as { id: string; storage_path: string; hvac_unit_visit_id: string }[] }),
+  ]);
+
+  const unitsById = new Map((units ?? []).map((unit) => [unit.id, unit]));
+  const deficienciesByVisit = new Map<string, { id: string; category: string; description: string }[]>();
+  for (const deficiency of deficiencies ?? []) {
+    const list = deficienciesByVisit.get(deficiency.hvac_unit_visit_id) ?? [];
+    list.push({
+      id: deficiency.id,
+      category: deficiency.category,
+      description: deficiency.description,
+    });
+    deficienciesByVisit.set(deficiency.hvac_unit_visit_id, list);
+  }
+
+  const photosByVisit = new Map<string, { id: string; storage_path: string }[]>();
+  for (const photo of photos ?? []) {
+    const list = photosByVisit.get(photo.hvac_unit_visit_id) ?? [];
+    list.push({ id: photo.id, storage_path: photo.storage_path });
+    photosByVisit.set(photo.hvac_unit_visit_id, list);
+  }
+
+  const mappedUnits: UnitVisitDetailData[] = (unitVisits ?? []).map((uv) => {
+    const unit = unitsById.get(uv.hvac_unit_id);
+    return {
+      id: uv.id,
+      status: uv.status as SuiteVisitStatus,
+      cleaned: uv.cleaned,
+      filter_changed: uv.filter_changed,
+      operating_normally: uv.operating_normally,
+      visited_at: uv.visited_at,
+      notes: uv.notes,
+      unit_name: unit?.name ?? "Unit",
+      filter_size: unit?.filter_size ?? null,
+      filter_quantity: unit?.filter_quantity ?? null,
+      deficiencies: deficienciesByVisit.get(uv.id) ?? [],
+      photos: photosByVisit.get(uv.id) ?? [],
+    };
+  });
+
+  const suite = Array.isArray(suiteVisit.suite) ? suiteVisit.suite[0] : suiteVisit.suite;
+
+  return {
+    id: suiteVisit.id,
+    status: (suiteVisit.status as SuiteVisitStatus) || getSuiteVisitRollupStatus(mappedUnits),
+    suite_number: suite?.suite_number ?? "",
+    floor: suite?.floor ?? null,
+    visited_at: suiteVisit.visited_at,
+    unit_visits: mappedUnits,
+  };
 }
 
 function UnitVisitCard({
@@ -279,10 +359,12 @@ function UnitVisitCard({
 
 export function SuiteVisitDetailDialog({
   visit,
+  loading = false,
   onClose,
   onVisitUpdated,
 }: {
   visit: SuiteVisitDetailData | null;
+  loading?: boolean;
   onClose: () => void;
   onVisitUpdated?: (visit: SuiteVisitDetailData) => void;
 }) {
@@ -329,6 +411,7 @@ export function SuiteVisitDetailDialog({
   }
 
   const unitCount = visitData.unit_visits.length;
+  const showLoading = loading && unitCount === 0;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -339,10 +422,12 @@ export function SuiteVisitDetailDialog({
             <h2 className="text-xl font-bold text-slate-900">Suite {visitData.suite_number}</h2>
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <Badge variant={statusBadgeVariant(visitData.status)}>
-                {SUITE_VISIT_STATUS_LABELS[visitData.status]}
+                {SUITE_VISIT_STATUS_LABELS[visitData.status] ?? visitData.status}
               </Badge>
               <span className="text-sm text-slate-500">
-                {unitCount} {unitCount === 1 ? "unit" : "units"}
+                {showLoading
+                  ? "Loading units…"
+                  : `${unitCount} ${unitCount === 1 ? "unit" : "units"}`}
                 {visitData.floor ? ` · Floor ${visitData.floor}` : ""}
               </span>
             </div>
@@ -353,7 +438,13 @@ export function SuiteVisitDetailDialog({
         </div>
 
         <div className="space-y-4 overflow-y-auto p-6">
-          {unitCount === 0 ? (
+          {showLoading ? (
+            <div className="space-y-3 animate-pulse">
+              {Array.from({ length: 2 }).map((_, index) => (
+                <div key={index} className="h-40 rounded-xl border border-slate-200 bg-slate-50" />
+              ))}
+            </div>
+          ) : unitCount === 0 ? (
             <p className="text-sm text-slate-500">No HVAC units linked to this suite visit.</p>
           ) : (
             visitData.unit_visits.map((unitVisit, index) => (

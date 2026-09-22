@@ -118,6 +118,7 @@ export function MaintenanceProgress({
 
   async function handleSuiteClick(visit: SuiteVisitDetailData) {
     setOpenError(null);
+    setSelectedVisit(visit);
     setOpeningVisitId(visit.id);
     try {
       const full = await fetchSuiteVisit(visit.id);
@@ -125,6 +126,7 @@ export function MaintenanceProgress({
       setSelectedVisit(full);
     } catch (err) {
       setOpenError(err instanceof Error ? err.message : "Could not open suite details");
+      setSelectedVisit(null);
     } finally {
       setOpeningVisitId(null);
     }
@@ -200,7 +202,11 @@ export function MaintenanceProgress({
 
       <SuiteVisitDetailDialog
         visit={selectedVisit}
-        onClose={() => setSelectedVisit(null)}
+        loading={openingVisitId !== null && selectedVisit?.id === openingVisitId}
+        onClose={() => {
+          setSelectedVisit(null);
+          setOpeningVisitId(null);
+        }}
         onVisitUpdated={(updated) => {
           setVisits((current) => current.map((visit) => (visit.id === updated.id ? updated : visit)));
           setSelectedVisit(updated);
