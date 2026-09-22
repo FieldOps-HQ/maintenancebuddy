@@ -32,10 +32,17 @@ interface MaintenanceItem {
 export default function MaintenanceListScreen() {
   const [maintenances, setMaintenances] = useState<MaintenanceItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const loadMaintenances = useCallback(async () => {
+  const loadMaintenances = useCallback(async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true);
+
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!user) {
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
 
     const { data: assignments } = await supabase
       .from("maintenance_assignments")
@@ -68,6 +75,7 @@ export default function MaintenanceListScreen() {
 
     setMaintenances(items);
     setLoading(false);
+    setRefreshing(false);
   }, []);
 
   useFocusEffect(
@@ -96,7 +104,9 @@ export default function MaintenanceListScreen() {
       <FlatList
         data={maintenances}
         keyExtractor={(item) => item.id}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={loadMaintenances} />}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={() => loadMaintenances(true)} />
+        }
         ListEmptyComponent={
           !loading ? (
             <Text style={styles.empty}>No assigned maintenances</Text>

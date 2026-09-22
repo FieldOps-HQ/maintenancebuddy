@@ -13,6 +13,7 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  RefreshControl,
 } from "react-native";
 import { useLocalSearchParams, router, useFocusEffect } from "expo-router";
 import {
@@ -86,6 +87,7 @@ export default function SuiteUnitsScreen() {
   const [showQuickActions, setShowQuickActions] = useState(false);
   const [statusReasonPrompt, setStatusReasonPrompt] = useState<"blocked_unit" | "no_access" | null>(null);
   const [statusReasonDraft, setStatusReasonDraft] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
   const autoRedirected = useRef(false);
 
   const loadData = useCallback(async (): Promise<UnitTile[]> => {
@@ -150,6 +152,15 @@ export default function SuiteUnitsScreen() {
       };
     }, [loadData, maintenanceId, visitId, suiteNumber, suiteId])
   );
+
+  async function handleRefresh() {
+    setRefreshing(true);
+    try {
+      await loadData();
+    } finally {
+      setRefreshing(false);
+    }
+  }
 
   const { completed, total } = countCompletedUnitVisits(units);
   const suiteStatus = getSuiteVisitRollupStatus(units.map((unit) => ({ status: unit.status })));
@@ -304,6 +315,9 @@ export default function SuiteUnitsScreen() {
           data={units}
           keyExtractor={(item) => item.unitVisitId}
           contentContainerStyle={styles.list}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+          }
           renderItem={({ item }) => (
             <TouchableOpacity
               style={[styles.unitCard, { borderLeftColor: MOBILE_STATUS_COLORS[item.status] }]}

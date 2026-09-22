@@ -14,6 +14,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Linking,
+  RefreshControl,
 } from "react-native";
 import { useLocalSearchParams, router, useFocusEffect } from "expo-router";
 import {
@@ -97,6 +98,7 @@ export default function SuiteGridScreen() {
   const [filterPickerOpen, setFilterPickerOpen] = useState(false);
   const [contacts, setContacts] = useState<BuildingContact[]>([]);
   const [showContacts, setShowContacts] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const loadData = useCallback(async () => {
     if (!maintenanceId) return;
@@ -192,6 +194,15 @@ export default function SuiteGridScreen() {
       loadData();
     }, [loadData])
   );
+
+  async function handleRefresh() {
+    setRefreshing(true);
+    try {
+      await loadData();
+    } finally {
+      setRefreshing(false);
+    }
+  }
 
   const filtered = visits.filter((v) =>
     v.suite_number.toLowerCase().includes(search.toLowerCase())
@@ -504,6 +515,9 @@ export default function SuiteGridScreen() {
         numColumns={4}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.grid}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+        }
         renderItem={({ item }) => (
           <TouchableOpacity
             style={[styles.tile, { backgroundColor: MOBILE_STATUS_COLORS[item.status] }]}
