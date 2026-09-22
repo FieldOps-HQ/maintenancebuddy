@@ -3,6 +3,7 @@ import { type EmailOtpType } from "@supabase/supabase-js";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import type { Database } from "@maintenancebuddy/supabase";
+import { safeAuthRedirectPath } from "@/lib/auth-redirect";
 import { createServiceClient } from "@/lib/supabase/service";
 
 /**
@@ -16,7 +17,10 @@ export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const tokenHash = searchParams.get("token_hash");
   const type = searchParams.get("type") as EmailOtpType | null;
-  const next = searchParams.get("next") ?? "/invite/complete";
+  const next = safeAuthRedirectPath(
+    searchParams.get("next"),
+    "/invite/complete"
+  );
 
   if (!tokenHash || !type) {
     return NextResponse.redirect(`${origin}/invite/complete?error=missing_token`);
@@ -68,6 +72,5 @@ export async function GET(request: Request) {
     }
   }
 
-  const dest = next.startsWith("/") ? next : "/invite/complete";
-  return NextResponse.redirect(`${origin}${dest}`);
+  return NextResponse.redirect(`${origin}${next}`);
 }

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import type { Database } from "@maintenancebuddy/supabase";
+import { safeAuthRedirectPath } from "@/lib/auth-redirect";
 import { createServiceClient } from "@/lib/supabase/service";
 
 export async function GET(request: Request) {
@@ -9,7 +10,7 @@ export async function GET(request: Request) {
   const code = searchParams.get("code");
   const tokenHash = searchParams.get("token_hash");
   const type = searchParams.get("type");
-  const next = searchParams.get("next") ?? "/";
+  const next = safeAuthRedirectPath(searchParams.get("next"), "/");
 
   // Prefer sending invitees straight to the set-password page with the same params.
   // That page handles code / token_hash / hash fragments client-side.

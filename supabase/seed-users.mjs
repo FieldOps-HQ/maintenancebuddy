@@ -11,6 +11,13 @@ import { fileURLToPath } from "node:url";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 config({ path: resolve(__dirname, "../.env") });
 
+if (process.env.ALLOW_SEED !== "1") {
+  console.error("Refusing to seed without ALLOW_SEED=1.");
+  console.error("Demo accounts use weak passwords — never run against production.");
+  console.error("Example: ALLOW_SEED=1 pnpm seed");
+  process.exit(1);
+}
+
 const supabaseUrl = process.env.SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 

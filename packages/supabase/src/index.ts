@@ -6,4 +6,4 @@ export function createBrowserClient(supabaseUrl: string, supabaseAnonKey: string
 }
 
 export type { Database };
-export type { Database as SupabaseDatabase };
+

@@ -8,7 +8,6 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@maintenancebuddy/shared": "workspace:*",
     "@supabase/supabase-js": "^2.49.1"
   },
   "devDependencies": {

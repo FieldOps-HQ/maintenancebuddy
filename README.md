@@ -62,10 +62,10 @@ cp .env.example .env
 Ensure root `.env` has `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`, then:
 
 ```bash
-pnpm seed
+ALLOW_SEED=1 pnpm seed
 ```
 
-This creates a demo organization, admin and technician accounts, and a sample maintenance job.
+This creates a demo organization, admin and technician accounts, and a sample maintenance job. **Never run seed against production** — demo passwords are weak and `ALLOW_SEED=1` is required deliberately.
 
 ### 6. Start the apps
 
@@ -104,6 +104,15 @@ Also add these Redirect URLs: `http://localhost:3000/auth/confirm`, `http://loca
 |------|-------|----------|
 | Admin | admin@maintenancebuddy.com | password123 |
 | Technician | tech@maintenancebuddy.com | password123 |
+
+## Production deploy
+
+1. **Database** — Apply all migrations through `20250828000020_deploy_security_hardening.sql` (`supabase db push` or SQL Editor in filename order).
+2. **Auth URLs** — Set Site URL to your production web origin. Add redirect URLs for `https://YOUR_DOMAIN/**`, `/auth/callback`, `/auth/confirm`, `/invite/complete`, and mobile schemes as needed. Update the Invite email template to use `TokenHash` (same HTML as above, with production Site URL).
+3. **Web (e.g. Vercel)** — Set `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` (server-only). Deploy `apps/web`.
+4. **Mobile (EAS / store builds)** — Set `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY`. Build with EAS; do not ship Expo Go for production technicians.
+5. **Do not seed production** — Skip `ALLOW_SEED=1 pnpm seed` on live projects.
+6. **Smoke test** — Signup → invite tech → create maintenance → complete a suite (online + one offline sync) → download PDF with org logo → confirm completed jobs are locked for technicians.
 
 ## Project Structure
 

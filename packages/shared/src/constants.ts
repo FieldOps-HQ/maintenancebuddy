@@ -16,13 +16,6 @@ export const SUITE_VISIT_STATUS_LABELS: Record<SuiteVisitStatus, string> = {
   no_access: "No Access",
 };
 
-export const SUITE_VISIT_STATUS_COLORS: Record<SuiteVisitStatus, string> = {
-  pending: "bg-gray-200 text-gray-700",
-  completed: "bg-green-500 text-white",
-  blocked_unit: "bg-red-500 text-white",
-  no_access: "bg-yellow-500 text-white",
-};
-
 export const MOBILE_STATUS_COLORS: Record<SuiteVisitStatus, string> = {
   pending: "#e5e7eb",
   completed: "#22c55e",

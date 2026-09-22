@@ -74,7 +74,10 @@ export async function GET(
     })
   );
 
-  const filename = `${maintenance.building?.name?.replace(/\s+/g, "-") ?? "maintenance"}-${formatDate(maintenance.start_date)}.pdf`;
+  const rawName = maintenance.building?.name?.replace(/\s+/g, "-") ?? "maintenance";
+  const safeName =
+    rawName.replace(/[^a-zA-Z0-9._-]/g, "").replace(/["\r\n]/g, "") || "report";
+  const filename = `${safeName}-${formatDate(maintenance.start_date)}.pdf`;
 
   return new NextResponse(new Uint8Array(buffer), {
     headers: {

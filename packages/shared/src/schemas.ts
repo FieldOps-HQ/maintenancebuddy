@@ -29,28 +29,6 @@ export const filterSizeSchema = z.object({
   thickness_in: inchField("Thickness is required"),
 });
 
-export const suiteSchema = z.object({
-  suite_number: z.string().min(1, "Suite number is required"),
-  floor: z.string().optional(),
-  filter_size: z.string().optional(),
-  filter_quantity: z.coerce.number().int().min(0).default(1),
-  hvac_location_notes: z.string().optional(),
-});
-
-export const suiteCreateSchema = z.object({
-  suite_number: z.string().min(1, "Suite number is required"),
-  floor: z.string().optional(),
-  filter_size: z.string().min(1, "Filter size is required"),
-});
-
-export const suiteUnitDraftSchema = z.object({
-  name: z.string().min(1, "Unit name is required"),
-  filter_size: z.string().min(1, "Filter size is required"),
-  location_notes: z.string().optional(),
-});
-
-export const technicianAddSuiteSchema = suiteCreateSchema;
-
 export const technicianFieldUnitSchema = z.object({
   suite_number: z.string().min(1, "Suite number is required"),
   filter_size: z.string().min(1, "Filter size is required"),
@@ -87,11 +65,6 @@ export const maintenanceUpdateSchema = z
     path: ["end_date"],
   });
 
-export const loginSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(6),
-});
-
 export const ownerSignupSchema = z.object({
   organization_name: z.string().min(1, "Organization name is required"),
   full_name: z.string().min(1, "Full name is required"),
@@ -109,27 +82,14 @@ export const teamMemberUpdateSchema = z.object({
   role: z.enum(["admin", "technician"]),
 });
 
-export const wizardStepSchema = z.object({
-  cleaned: z.boolean().optional(),
-  filter_changed: z.boolean().optional(),
-  operating_normally: z.boolean().optional(),
-  notes: z.string().optional(),
-});
-
 export type BuildingInput = z.infer<typeof buildingSchema>;
 export type BuildingContactInput = z.infer<typeof buildingContactSchema>;
 export type FilterSizeInput = z.infer<typeof filterSizeSchema>;
-export type SuiteInput = z.infer<typeof suiteSchema>;
-export type SuiteCreateInput = z.infer<typeof suiteCreateSchema>;
-export type SuiteUnitDraftInput = z.infer<typeof suiteUnitDraftSchema>;
-export type TechnicianAddSuiteInput = z.infer<typeof technicianAddSuiteSchema>;
 export type TechnicianFieldUnitInput = z.infer<typeof technicianFieldUnitSchema>;
 export type HvacUnitInput = z.infer<typeof hvacUnitSchema>;
 export type TechnicianAddHvacUnitInput = z.infer<typeof technicianAddHvacUnitSchema>;
 export type MaintenanceInput = z.infer<typeof maintenanceSchema>;
 export type MaintenanceUpdateInput = z.infer<typeof maintenanceUpdateSchema>;
-export type LoginInput = z.infer<typeof loginSchema>;
 export type OwnerSignupInput = z.infer<typeof ownerSignupSchema>;
 export type TeamInviteInput = z.infer<typeof teamInviteSchema>;
 export type TeamMemberUpdateInput = z.infer<typeof teamMemberUpdateSchema>;
-export type WizardStepInput = z.infer<typeof wizardStepSchema>;

@@ -110,13 +110,6 @@ export interface Maintenance {
   updated_at: string;
 }
 
-export interface MaintenanceAssignment {
-  id: string;
-  maintenance_id: string;
-  technician_id: string;
-  created_at: string;
-}
-
 export interface SuiteVisit {
   id: string;
   maintenance_id: string;
@@ -148,34 +141,4 @@ export interface Deficiency {
   category: DeficiencyCategory;
   description: string;
   created_at: string;
-}
-
-export interface VisitPhoto {
-  id: string;
-  hvac_unit_visit_id: string;
-  storage_path: string;
-  created_at: string;
-}
-
-export interface SuiteVisitWithSuite extends SuiteVisit {
-  suite: Suite;
-}
-
-export interface HvacUnitVisitWithUnit extends HvacUnitVisit {
-  hvac_unit: HvacUnit;
-}
-
-export interface SuiteVisitWithUnits extends SuiteVisitWithSuite {
-  hvac_unit_visits: HvacUnitVisitWithUnit[];
-}
-
-export interface MaintenanceWithDetails extends Maintenance {
-  building: Building;
-  assignments: (MaintenanceAssignment & { technician: Profile })[];
-  suite_visits: SuiteVisitWithUnits[];
-}
-
-export interface FilterSummary {
-  filter_size: string;
-  total_quantity: number;
 }
