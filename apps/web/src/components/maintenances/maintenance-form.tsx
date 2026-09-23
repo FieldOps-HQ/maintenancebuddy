@@ -187,7 +187,7 @@ export function MaintenanceForm({
           {technicians.length === 0 ? (
             <p className="text-sm text-zinc-500">
               No technicians found.{" "}
-              <a href="/team" className="font-medium text-sky-700 hover:underline">
+              <a href="/team" className="font-medium text-teal-800 hover:underline">
                 Invite technicians
               </a>{" "}
               from the Team page.

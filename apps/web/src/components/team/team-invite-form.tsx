@@ -94,7 +94,7 @@ export function TeamInviteForm() {
       {error && <p className="text-sm text-red-600">{error}</p>}
       {success && <p className="text-sm text-emerald-700">{success}</p>}
       {acceptUrl && (
-        <div className="space-y-2 rounded-lg border border-sky-100 bg-sky-50/80 p-3">
+        <div className="space-y-2 rounded-lg border border-teal-100 bg-teal-50/80 p-3">
           <p className="text-sm font-medium text-slate-800">Accept link (send to technician)</p>
           <p className="break-all text-xs text-slate-600">{acceptUrl}</p>
           <Button type="button" size="sm" variant="secondary" onClick={copyLink}>

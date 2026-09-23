@@ -49,7 +49,7 @@ export function TabsList({ className, children }: { className?: string; children
     <div
       role="tablist"
       className={cn(
-        "inline-flex w-full gap-1 rounded-xl border border-slate-200/80 bg-slate-100/80 p-1 sm:w-auto",
+        "inline-flex w-full gap-1 rounded-md border border-border bg-zinc-100/80 p-1 sm:w-auto",
         className
       )}
     >
@@ -77,10 +77,10 @@ export function TabsTrigger({
       aria-selected={active}
       onClick={() => setValue(value)}
       className={cn(
-        "inline-flex flex-1 items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition-all sm:flex-none",
+        "inline-flex flex-1 items-center justify-center rounded-md px-4 py-1.5 text-sm font-medium transition-all sm:flex-none",
         active
-          ? "bg-white text-sky-700 shadow-sm ring-1 ring-slate-200/80"
-          : "text-slate-600 hover:text-slate-900",
+          ? "bg-card text-teal-800 shadow-sm ring-1 ring-border"
+          : "text-zinc-600 hover:text-zinc-900",
         className
       )}
     >

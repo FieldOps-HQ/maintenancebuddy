@@ -2,6 +2,14 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { formatBuildingAddress } from "@maintenancebuddy/shared";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { PageHeader } from "@/components/layout/page-header";
 import { ChevronRight, Plus } from "lucide-react";
 import { BuildingForm } from "@/components/buildings/building-form";
@@ -20,17 +28,17 @@ export default async function BuildingsPage() {
     .order("name");
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <PageHeader
         title="Buildings"
         description="Manage buildings, suites, and contacts"
       />
 
-      <div className="grid gap-8 lg:grid-cols-3">
+      <div className="grid gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-1">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Plus className="h-4 w-4 text-sky-600" /> Add Building
+            <CardTitle className="flex items-center gap-2">
+              <Plus className="h-4 w-4 text-teal-700" /> Add building
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -38,42 +46,52 @@ export default async function BuildingsPage() {
           </CardContent>
         </Card>
 
-        <div className="space-y-3 lg:col-span-2">
+        <Card className="overflow-hidden lg:col-span-2">
           {!buildings?.length ? (
-            <Card>
-              <CardContent className="py-12 text-center">
-                <p className="text-slate-500">No buildings yet. Add your first building.</p>
-              </CardContent>
-            </Card>
+            <CardContent className="py-12 text-center text-sm text-muted-foreground">
+              No buildings yet. Add your first building.
+            </CardContent>
           ) : (
-            buildings.map((building) => {
-              const suiteCount = readCount(building.suites as CountEmbed);
-              const contactCount = readCount(building.building_contacts as CountEmbed);
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Building</TableHead>
+                  <TableHead>Suites</TableHead>
+                  <TableHead>Contacts</TableHead>
+                  <TableHead className="w-10" />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {buildings.map((building) => {
+                  const suiteCount = readCount(building.suites as CountEmbed);
+                  const contactCount = readCount(building.building_contacts as CountEmbed);
 
-              return (
-                <Link key={building.id} href={`/buildings/${building.id}`}>
-                  <Card className="group transition-all hover:-translate-y-0.5 hover:border-sky-200/60 hover:shadow-md">
-                    <CardContent className="flex items-center justify-between py-4">
-                      <div>
-                        <p className="font-semibold text-slate-900 group-hover:text-sky-700">{building.name}</p>
-                        <p className="text-sm text-slate-500">
-                          {formatBuildingAddress(building)}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <div className="text-right text-sm text-slate-500">
-                          <p>{suiteCount} suites</p>
-                          <p>{contactCount} contacts</p>
-                        </div>
-                        <ChevronRight className="h-5 w-5 text-slate-300 transition-colors group-hover:text-sky-500" />
-                      </div>
-                    </CardContent>
-                  </Card>
-                </Link>
-              );
-            })
+                  return (
+                    <TableRow key={building.id} className="group">
+                      <TableCell>
+                        <Link href={`/buildings/${building.id}`} className="block">
+                          <p className="font-medium text-foreground group-hover:text-teal-800">
+                            {building.name}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {formatBuildingAddress(building)}
+                          </p>
+                        </Link>
+                      </TableCell>
+                      <TableCell className="font-mono text-sm">{suiteCount}</TableCell>
+                      <TableCell className="font-mono text-sm">{contactCount}</TableCell>
+                      <TableCell>
+                        <Link href={`/buildings/${building.id}`}>
+                          <ChevronRight className="h-4 w-4 text-zinc-300 transition-colors group-hover:text-teal-600" />
+                        </Link>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
           )}
-        </div>
+        </Card>
       </div>
     </div>
   );

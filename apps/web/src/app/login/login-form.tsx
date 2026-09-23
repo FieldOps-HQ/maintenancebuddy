@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { AuthShell } from "@/components/layout/auth-shell";
 import { Wrench } from "lucide-react";
 
 function inviteParamsPresent() {
@@ -28,7 +29,9 @@ export default function LoginForm() {
   const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState(searchParams.get("error") === "admin_only" ? "Admin access only." : "");
+  const [error, setError] = useState(
+    searchParams.get("error") === "admin_only" ? "Admin access only." : ""
+  );
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -51,7 +54,9 @@ export default function LoginForm() {
       return;
     }
 
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     if (!user) {
       setError("Sign-in succeeded but session was not established. Try again.");
       setLoading(false);
@@ -83,61 +88,59 @@ export default function LoginForm() {
   }
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-50 p-4">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-sky-100/80 via-slate-50 to-slate-50" />
-      <div className="pointer-events-none absolute -right-24 -top-24 h-96 w-96 rounded-full bg-sky-200/30 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-24 -left-24 h-96 w-96 rounded-full bg-slate-200/40 blur-3xl" />
+    <AuthShell>
+      <div className="mb-8 lg:hidden">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-md bg-teal-700 text-white">
+            <Wrench className="h-4 w-4" />
+          </div>
+          <span className="font-semibold tracking-tight">MaintenanceBuddy</span>
+        </div>
+      </div>
 
-      <Card className="relative w-full max-w-md border-slate-200/80 shadow-xl">
-        <CardHeader className="space-y-4 text-center">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-sky-600 text-white shadow-md">
-            <Wrench className="h-6 w-6" />
+      <div className="space-y-1">
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Sign in</h1>
+        <p className="text-sm text-muted-foreground">Admin dashboard access</p>
+      </div>
+
+      <form onSubmit={handleSubmit} className="mt-8 space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="email">Email</Label>
+          <Input
+            id="email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="admin@company.com"
+            required
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="password">Password</Label>
+          <Input
+            id="password"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
+        </div>
+        {error && (
+          <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            {error}
           </div>
-          <div>
-            <CardTitle className="text-2xl text-slate-900">MaintenanceBuddy</CardTitle>
-            <CardDescription className="mt-1">Sign in to the admin dashboard</CardDescription>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="admin@maintenancebuddy.com"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-            </div>
-            {error && (
-              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                {error}
-              </div>
-            )}
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Signing in..." : "Sign in"}
-            </Button>
-          </form>
-          <p className="mt-4 text-center text-sm text-slate-500">
-            New organization?{" "}
-            <a href="/signup" className="font-medium text-sky-700 hover:text-sky-800">
-              Create an account
-            </a>
-          </p>
-        </CardContent>
-      </Card>
-    </div>
+        )}
+        <Button type="submit" className="w-full" disabled={loading}>
+          {loading ? "Signing in..." : "Sign in"}
+        </Button>
+      </form>
+
+      <p className="mt-6 text-center text-sm text-muted-foreground">
+        New organization?{" "}
+        <Link href="/signup" className="font-medium text-teal-700 hover:text-teal-800">
+          Create an account
+        </Link>
+      </p>
+    </AuthShell>
   );
 }

@@ -117,10 +117,10 @@ function parsePasteRows(text: string): Omit<DraftRow, "id">[] {
 }
 
 const cellInputClass =
-  "h-9 w-full min-w-[7rem] rounded-none border-0 bg-transparent px-2 shadow-none ring-0 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sky-400";
+  "h-9 w-full min-w-[7rem] rounded-none border-0 bg-transparent px-2 shadow-none ring-0 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-teal-500";
 
 const cellSelectClass =
-  "h-9 w-full min-w-[7rem] cursor-pointer appearance-none rounded-none border-0 bg-transparent px-2 py-0 shadow-none ring-0 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sky-400";
+  "h-9 w-full min-w-[7rem] cursor-pointer appearance-none rounded-none border-0 bg-transparent px-2 py-0 shadow-none ring-0 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-teal-500";
 
 function FilterSizeSelect({
   value,
@@ -267,7 +267,7 @@ async function deleteSelectedRows(
 }
 
 const checkboxClass =
-  "h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500 disabled:opacity-50";
+  "h-4 w-4 rounded border-slate-300 text-teal-700 focus:ring-teal-500 disabled:opacity-50";
 
 function RowCheckbox({
   checked,
@@ -582,7 +582,7 @@ function ExistingUnitRow({
       <TableRow
         className={cn(
           "group border-b border-slate-200 hover:bg-slate-50/80",
-          selected ? "bg-sky-50/60" : "bg-white"
+          selected ? "bg-teal-50/60" : "bg-white"
         )}
       >
         <TableCell className="border-r border-slate-200 px-2 py-1.5">
@@ -724,7 +724,7 @@ function ExistingSuiteRow({
       <TableRow
         className={cn(
           "cursor-pointer border-b border-slate-200 hover:bg-slate-100/80",
-          someSelected || allSelected ? "bg-sky-50/50" : "bg-slate-50/80"
+          someSelected || allSelected ? "bg-teal-50/50" : "bg-slate-50/80"
         )}
         onClick={onToggle}
       >
@@ -1167,10 +1167,10 @@ export function SuitesSpreadsheet({
           onPaste={handlePaste}
           className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-slate-300 bg-white font-mono text-sm shadow-sm"
         >
-          <div className="flex shrink-0 items-center justify-between gap-3 border-b border-sky-200/80 bg-sky-50/80 px-3 py-2 font-sans">
+          <div className="flex shrink-0 items-center justify-between gap-3 border-b border-teal-200/80 bg-teal-50/80 px-3 py-2 font-sans">
             <div className="min-w-0">
-              <p className="text-sm font-medium text-sky-900">New unit</p>
-              <p className="text-xs text-sky-700/80">Fill the row below, then press Enter or Add unit</p>
+              <p className="text-sm font-medium text-teal-900">New unit</p>
+              <p className="text-xs text-teal-800/80">Fill the row below, then press Enter or Add unit</p>
             </div>
             <div className="flex shrink-0 gap-2">
               <Button
@@ -1252,7 +1252,7 @@ export function SuitesSpreadsheet({
                 {draftRows.map((row) => (
                   <TableRow
                     key={row.id}
-                    className="border-b border-slate-200 bg-sky-50/30 hover:bg-sky-50/50"
+                    className="border-b border-slate-200 bg-teal-50/30 hover:bg-teal-50/50"
                   >
                     <TableCell className="border-r border-slate-200" />
                     <TableCell className="border-r border-slate-200 p-0">
