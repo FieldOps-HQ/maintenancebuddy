@@ -17,10 +17,10 @@ export const SUITE_VISIT_STATUS_LABELS: Record<SuiteVisitStatus, string> = {
 };
 
 export const MOBILE_STATUS_COLORS: Record<SuiteVisitStatus, string> = {
-  pending: "#e5e7eb",
-  completed: "#22c55e",
-  blocked_unit: "#ef4444",
-  no_access: "#eab308",
+  pending: "#e4e4e7",
+  completed: "#0f766e",
+  blocked_unit: "#dc2626",
+  no_access: "#d97706",
 };
 
 export const DEFICIENCY_LABELS: Record<DeficiencyCategory, string> = {

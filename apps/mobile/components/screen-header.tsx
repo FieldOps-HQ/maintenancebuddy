@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
-import { colors } from "@/lib/theme";
+import { colors, radius, fonts } from "@/lib/theme";
 
 type ScreenHeaderProps = {
   title: string;
@@ -12,6 +12,8 @@ type ScreenHeaderProps = {
   onBack?: () => void;
   rightAction?: ReactNode;
   children?: ReactNode;
+  /** Dark chrome matching web sidebar (default). Use light for dense form flows. */
+  variant?: "dark" | "light";
 };
 
 export function ScreenHeader({
@@ -22,29 +24,50 @@ export function ScreenHeader({
   onBack,
   rightAction,
   children,
+  variant = "dark",
 }: ScreenHeaderProps) {
   const insets = useSafeAreaInsets();
+  const dark = variant === "dark";
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top + 12 }]}>
+    <View
+      style={[
+        styles.container,
+        dark ? styles.containerDark : styles.containerLight,
+        { paddingTop: insets.top + 12 },
+      ]}
+    >
       <View style={styles.topRow}>
         {showBack ? (
           <TouchableOpacity
-            style={styles.backButton}
+            style={[styles.backButton, dark ? styles.backButtonDark : styles.backButtonLight]}
             onPress={onBack ?? (() => router.back())}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             accessibilityRole="button"
             accessibilityLabel="Go back"
           >
-            <Text style={styles.backIcon}>‹</Text>
+            <Text style={[styles.backIcon, dark ? styles.backIconDark : styles.backIconLight]}>
+              ‹
+            </Text>
           </TouchableOpacity>
         ) : null}
 
         <View style={[styles.titleBlock, !showBack && styles.titleBlockFlush]}>
-          <Text style={[styles.title, large && styles.titleLarge]} numberOfLines={2}>
+          <Text
+            style={[
+              styles.title,
+              dark ? styles.titleDark : styles.titleLight,
+              large && styles.titleLarge,
+            ]}
+            numberOfLines={2}
+          >
             {title}
           </Text>
-          {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+          {subtitle ? (
+            <Text style={[styles.subtitle, dark ? styles.subtitleDark : styles.subtitleLight]}>
+              {subtitle}
+            </Text>
+          ) : null}
         </View>
 
         {rightAction ? <View style={styles.rightAction}>{rightAction}</View> : null}
@@ -57,11 +80,18 @@ export function ScreenHeader({
 
 const styles = StyleSheet.create({
   container: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+  },
+  containerDark: {
+    backgroundColor: colors.sidebar,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.08)",
+  },
+  containerLight: {
     backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
-    paddingHorizontal: 16,
-    paddingBottom: 16,
   },
   topRow: {
     flexDirection: "row",
@@ -71,18 +101,28 @@ const styles = StyleSheet.create({
   backButton: {
     width: 36,
     height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.slate100,
+    borderRadius: radius.md,
     alignItems: "center",
     justifyContent: "center",
     marginTop: 2,
   },
+  backButtonDark: {
+    backgroundColor: "rgba(255,255,255,0.1)",
+  },
+  backButtonLight: {
+    backgroundColor: colors.slate100,
+  },
   backIcon: {
     fontSize: 28,
     lineHeight: 30,
-    color: colors.primary,
     fontWeight: "600",
     marginLeft: -2,
+  },
+  backIconDark: {
+    color: "#5eead4",
+  },
+  backIconLight: {
+    color: colors.primary,
   },
   titleBlock: {
     flex: 1,
@@ -93,18 +133,30 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 20,
-    fontWeight: "700",
+    fontFamily: fonts.semibold,
+    letterSpacing: -0.3,
+  },
+  titleDark: {
+    color: colors.white,
+  },
+  titleLight: {
     color: colors.text,
   },
   titleLarge: {
-    fontSize: 26,
-    lineHeight: 32,
+    fontSize: 24,
+    lineHeight: 30,
   },
   subtitle: {
-    fontSize: 14,
-    color: colors.textSecondary,
+    fontSize: 13,
+    fontFamily: fonts.regular,
     marginTop: 4,
-    lineHeight: 20,
+    lineHeight: 18,
+  },
+  subtitleDark: {
+    color: colors.sidebarText,
+  },
+  subtitleLight: {
+    color: colors.textSecondary,
   },
   rightAction: {
     marginTop: 2,

@@ -10,10 +10,12 @@ import {
   Alert,
 } from "react-native";
 import { router } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { supabase } from "@/lib/supabase";
-import { colors, radius } from "@/lib/theme";
+import { colors, radius, fonts } from "@/lib/theme";
 
 export default function LoginScreen() {
+  const insets = useSafeAreaInsets();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -28,7 +30,9 @@ export default function LoginScreen() {
       return;
     }
 
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     if (!user) {
       Alert.alert("Login failed", "Session was not established. Try again.");
       setLoading(false);
@@ -60,17 +64,30 @@ export default function LoginScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-    >
-      <View style={styles.card}>
-        <Text style={styles.title}>MaintenanceBuddy</Text>
-        <Text style={styles.subtitle}>Technician Login</Text>
+    <View style={styles.root}>
+      <View style={[styles.hero, { paddingTop: insets.top + 32 }]}>
+        <View style={styles.mark}>
+          <Text style={styles.markGlyph}>⚙</Text>
+        </View>
+        <Text style={styles.brand}>MaintenanceBuddy</Text>
+        <Text style={styles.heroEyebrow}>FIELD OPERATIONS</Text>
+        <Text style={styles.heroTitle}>Track suite visits on site</Text>
+        <Text style={styles.heroSub}>
+          Complete units, capture photos, and sync when you're back online.
+        </Text>
+      </View>
+
+      <KeyboardAvoidingView
+        style={styles.formWrap}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
+        <Text style={styles.formTitle}>Technician sign in</Text>
+        <Text style={styles.formHint}>Use the account your admin invited</Text>
 
         <TextInput
           style={styles.input}
           placeholder="Email"
+          placeholderTextColor={colors.textMuted}
           value={email}
           onChangeText={setEmail}
           autoCapitalize="none"
@@ -79,6 +96,7 @@ export default function LoginScreen() {
         <TextInput
           style={styles.input}
           placeholder="Password"
+          placeholderTextColor={colors.textMuted}
           value={password}
           onChangeText={setPassword}
           secureTextEntry
@@ -89,34 +107,102 @@ export default function LoginScreen() {
           onPress={handleLogin}
           disabled={loading}
         >
-          <Text style={styles.buttonText}>{loading ? "Signing in..." : "Sign In"}</Text>
+          <Text style={styles.buttonText}>{loading ? "Signing in..." : "Sign in"}</Text>
         </TouchableOpacity>
-      </View>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: "center", backgroundColor: colors.background, padding: 24 },
-  card: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: 24,
-    borderWidth: 1,
-    borderColor: colors.border,
+  root: { flex: 1, backgroundColor: colors.background },
+  hero: {
+    backgroundColor: colors.sidebar,
+    paddingHorizontal: 24,
+    paddingBottom: 28,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.08)",
   },
-  title: { fontSize: 24, fontWeight: "700", textAlign: "center", color: colors.text },
-  subtitle: { fontSize: 14, color: colors.textMuted, textAlign: "center", marginBottom: 24, marginTop: 4 },
+  mark: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.md,
+    backgroundColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
+  },
+  markGlyph: { color: colors.white, fontSize: 18 },
+  brand: {
+    color: colors.white,
+    fontSize: 18,
+    fontFamily: fonts.semibold,
+    letterSpacing: -0.2,
+  },
+  heroEyebrow: {
+    marginTop: 20,
+    color: "#5eead4",
+    fontSize: 11,
+    fontFamily: fonts.semibold,
+    letterSpacing: 1.6,
+  },
+  heroTitle: {
+    marginTop: 8,
+    color: colors.white,
+    fontSize: 26,
+    fontFamily: fonts.semibold,
+    letterSpacing: -0.4,
+    lineHeight: 32,
+  },
+  heroSub: {
+    marginTop: 8,
+    color: colors.sidebarText,
+    fontSize: 14,
+    fontFamily: fonts.regular,
+    lineHeight: 20,
+    maxWidth: 320,
+  },
+  formWrap: {
+    flex: 1,
+    paddingHorizontal: 24,
+    paddingTop: 28,
+  },
+  formTitle: {
+    fontSize: 20,
+    fontFamily: fonts.semibold,
+    color: colors.text,
+    letterSpacing: -0.2,
+  },
+  formHint: {
+    fontSize: 13,
+    fontFamily: fonts.regular,
+    color: colors.textSecondary,
+    marginTop: 4,
+    marginBottom: 20,
+  },
   input: {
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: radius.sm,
-    padding: 14,
+    borderRadius: radius.md,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     fontSize: 16,
+    fontFamily: fonts.regular,
     marginBottom: 12,
     backgroundColor: colors.surface,
+    color: colors.text,
   },
-  button: { backgroundColor: colors.primary, borderRadius: radius.sm, padding: 16, marginTop: 8 },
+  button: {
+    backgroundColor: colors.primary,
+    borderRadius: radius.md,
+    paddingVertical: 14,
+    marginTop: 8,
+  },
   buttonDisabled: { opacity: 0.6 },
-  buttonText: { color: colors.white, fontSize: 16, fontWeight: "600", textAlign: "center" },
+  buttonText: {
+    color: colors.white,
+    fontSize: 16,
+    fontFamily: fonts.semibold,
+    textAlign: "center",
+  },
 });
