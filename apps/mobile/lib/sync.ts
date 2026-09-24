@@ -3,7 +3,7 @@ import type { DeficiencyCategory } from "@maintenancebuddy/shared";
 import { supabase } from "@/lib/supabase";
 import { addFieldUnit } from "@/lib/add-field-unit";
 import { buildUnitAccessStatusUpdates } from "@/lib/suite-visit-status";
-import { base64ToArrayBuffer } from "@/lib/upload-photo";
+import { uploadVisitPhoto } from "@/lib/upload-photo";
 import { processOutbox, type OutboxHandlers } from "@/lib/outbox";
 
 let syncing = false;
@@ -49,26 +49,14 @@ const handlers: OutboxHandlers = {
       unitId: string;
       base64: string;
     };
-    const path = `${maintenanceId}/${suiteId}/${unitId}/${Date.now()}.jpg`;
-    const { error: uploadError } = await supabase.storage
-      .from("visit-photos")
-      .upload(path, base64ToArrayBuffer(base64), {
-        contentType: "image/jpeg",
-        upsert: true,
-      });
-    await assertNoError(uploadError, "Failed to upload visit photo");
-
-    const { error: deleteError } = await supabase
-      .from("visit_photos")
-      .delete()
-      .eq("hvac_unit_visit_id", unitVisitId);
-    await assertNoError(deleteError, "Failed to clear old visit photos");
-
-    const { error: insertError } = await supabase.from("visit_photos").insert({
-      hvac_unit_visit_id: unitVisitId,
-      storage_path: path,
-    });
-    await assertNoError(insertError, "Failed to save visit photo record");
+    await uploadVisitPhoto(
+      `data:image/jpeg;base64,${base64}`,
+      maintenanceId,
+      suiteId,
+      unitId,
+      unitVisitId,
+      base64
+    );
   },
 
   createDeficiency: async (payload) => {

@@ -1,5 +1,6 @@
 import * as FileSystem from "expo-file-system/legacy";
 import { supabase } from "./supabase";
+import { apiFetch } from "./api";
 
 function base64ToUint8Array(base64: string): Uint8Array {
   const binary = atob(base64);
@@ -35,15 +36,38 @@ export async function uploadVisitPhoto(
     throw new Error("Photo file is empty");
   }
 
-  const storagePath = `${maintenanceId}/${suiteId}/${unitId}/${Date.now()}.jpg`;
+  const { url, storagePath, headers } = await apiFetch<{
+    url: string;
+    storagePath: string;
+    headers: Record<string, string>;
+  }>("/api/photos/presign-upload", {
+    method: "POST",
+    json: {
+      maintenanceId,
+      suiteId,
+      unitId,
+      contentType: "image/jpeg",
+    },
+  });
+
   const fileData = base64ToUint8Array(base64);
+  const body = fileData.buffer.slice(
+    fileData.byteOffset,
+    fileData.byteOffset + fileData.byteLength
+  ) as ArrayBuffer;
+  const putRes = await fetch(url, {
+    method: "PUT",
+    headers: {
+      "Content-Type": headers["Content-Type"] ?? "image/jpeg",
+    },
+    body,
+  });
 
-  const { error: uploadError } = await supabase.storage
-    .from("visit-photos")
-    .upload(storagePath, fileData, { contentType: "image/jpeg", upsert: true });
-
-  if (uploadError) {
-    throw new Error(`Upload failed: ${uploadError.message}`);
+  if (!putRes.ok) {
+    const detail = await putRes.text().catch(() => "");
+    throw new Error(
+      `Upload failed (${putRes.status})${detail ? `: ${detail.slice(0, 200)}` : ""}`
+    );
   }
 
   await supabase.from("visit_photos").delete().eq("hvac_unit_visit_id", unitVisitId);
@@ -58,6 +82,17 @@ export async function uploadVisitPhoto(
   }
 
   return { storagePath };
+}
+
+export async function getSignedVisitPhotoUrl(storagePath: string): Promise<string | null> {
+  const { urls } = await apiFetch<{ urls: Record<string, string> }>(
+    "/api/photos/presign-get",
+    {
+      method: "POST",
+      json: { paths: [storagePath] },
+    }
+  );
+  return urls[storagePath] ?? null;
 }
 
 export { base64ToUint8Array as base64ToArrayBuffer };

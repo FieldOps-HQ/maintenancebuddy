@@ -22,7 +22,8 @@ import {
 import type { SuiteVisitStatus } from "@maintenancebuddy/shared";
 import { supabase } from "@/lib/supabase";
 import { addToOutbox, getDeficienciesFromAnswers } from "@/lib/outbox";
-import { uploadVisitPhoto } from "@/lib/upload-photo";
+import { compressVisitPhoto } from "@/lib/compress-photo";
+import { getSignedVisitPhotoUrl, uploadVisitPhoto } from "@/lib/upload-photo";
 import { colors, radius } from "@/lib/theme";
 import { ScreenHeader } from "@/components/screen-header";
 import * as FileSystem from "expo-file-system/legacy";
@@ -166,13 +167,14 @@ export default function WizardScreen() {
         .limit(1);
 
       if (photos?.[0]) {
-        const { data: signed } = await supabase.storage
-          .from("visit-photos")
-          .createSignedUrl(photos[0].storage_path, 3600);
-
-        if (signed?.signedUrl) {
-          setPhotoUri(signed.signedUrl);
-          setHasExistingPhoto(true);
+        try {
+          const signedUrl = await getSignedVisitPhotoUrl(photos[0].storage_path);
+          if (signedUrl) {
+            setPhotoUri(signedUrl);
+            setHasExistingPhoto(true);
+          }
+        } catch {
+          // Existing photo URL is best-effort when editing offline
         }
       }
 
@@ -553,12 +555,18 @@ export default function WizardScreen() {
 
   async function takePhoto() {
     if (!cameraRef.current) return;
-    const photo = await cameraRef.current.takePictureAsync({ quality: 0.5, base64: true });
-    if (photo?.uri) {
-      setPhotoUri(photo.uri);
-      setPhotoBase64(photo.base64 ?? null);
+    const photo = await cameraRef.current.takePictureAsync({ quality: 0.8 });
+    if (!photo?.uri) return;
+
+    try {
+      const compressed = await compressVisitPhoto(photo.uri);
+      setPhotoUri(compressed.uri);
+      setPhotoBase64(compressed.base64);
       setHasExistingPhoto(false);
       setShowCamera(false);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Could not process photo";
+      Alert.alert("Photo failed", message);
     }
   }
 

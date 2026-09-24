@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { SuiteVisitStatus } from "@maintenancebuddy/shared";
+import { deleteVisitPhotoObjects } from "@/lib/photos/client";
 
 export function isLeavingCompletedStatus(
   previousStatus: SuiteVisitStatus,
@@ -20,10 +21,7 @@ export async function resetSuiteVisitCompletionData(
   ];
 
   if (storagePaths.length > 0) {
-    const { error: storageError } = await supabase.storage.from("visit-photos").remove(storagePaths);
-    if (storageError) {
-      throw new Error(`Failed to delete photos: ${storageError.message}`);
-    }
+    await deleteVisitPhotoObjects(storagePaths);
   }
 
   const { error: photosError } = await supabase

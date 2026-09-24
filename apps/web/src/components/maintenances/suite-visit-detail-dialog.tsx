@@ -18,6 +18,7 @@ import {
   isLeavingCompletedStatus,
   resetSuiteVisitCompletionData,
 } from "@/lib/reset-suite-visit-completion";
+import { fetchSignedPhotoUrls } from "@/lib/photos/client";
 import { VisitStatusEditor, UNIT_EDITABLE_STATUSES } from "@/components/maintenances/visit-status-editor";
 import { X } from "lucide-react";
 
@@ -77,8 +78,6 @@ function UnitPhoto({ unitVisit }: { unitVisit: UnitVisitDetailData }) {
     setPhotoLoading(true);
     setPhotoError(null);
 
-    const supabase = createClient();
-
     async function loadPhoto() {
       const photoPath = unitVisit.photos[0]?.storage_path;
       if (!photoPath) {
@@ -89,16 +88,19 @@ function UnitPhoto({ unitVisit }: { unitVisit: UnitVisitDetailData }) {
         return;
       }
 
-      const { data, error } = await supabase.storage.from("visit-photos").createSignedUrl(photoPath, 3600);
-
-      if (!cancelled) {
-        if (error) {
-          setPhotoUrl(null);
-          setPhotoError(error.message);
-        } else {
-          setPhotoUrl(data?.signedUrl ?? null);
+      try {
+        const urls = await fetchSignedPhotoUrls([photoPath]);
+        if (!cancelled) {
+          setPhotoUrl(urls[photoPath] ?? null);
+          setPhotoError(null);
+          setPhotoLoading(false);
         }
-        setPhotoLoading(false);
+      } catch (err) {
+        if (!cancelled) {
+          setPhotoUrl(null);
+          setPhotoError(err instanceof Error ? err.message : "Failed to load photo");
+          setPhotoLoading(false);
+        }
       }
     }
 
