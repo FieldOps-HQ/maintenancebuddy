@@ -31,8 +31,9 @@ export async function updateSession(request: NextRequest) {
     request.nextUrl.pathname.startsWith("/login") ||
     request.nextUrl.pathname.startsWith("/signup");
   const isInvitePage = request.nextUrl.pathname.startsWith("/invite");
+  const isApiRoute = request.nextUrl.pathname.startsWith("/api");
   const isPublic =
-    request.nextUrl.pathname.startsWith("/auth") || isInvitePage;
+    request.nextUrl.pathname.startsWith("/auth") || isInvitePage || isApiRoute;
 
   if (!user && !isAuthPage && !isPublic) {
     const url = request.nextUrl.clone();
@@ -46,6 +47,7 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // Dashboard HTML only — API routes authenticate themselves (cookies or Bearer).
   if (user && !isAuthPage && !isPublic) {
     const { data: profile } = await supabase
       .from("profiles")

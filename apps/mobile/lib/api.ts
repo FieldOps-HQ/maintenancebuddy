@@ -34,11 +34,18 @@ export async function apiFetch<T>(
     headers.set("Content-Type", "application/json");
   }
 
-  const res = await fetch(`${getApiBaseUrl()}${path}`, {
-    ...init,
-    headers,
-    body: init?.json !== undefined ? JSON.stringify(init.json) : init?.body,
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${getApiBaseUrl()}${path}`, {
+      ...init,
+      headers,
+      body: init?.json !== undefined ? JSON.stringify(init.json) : init?.body,
+    });
+  } catch {
+    throw new Error(
+      `Cannot reach web API at ${getApiBaseUrl()}. Is Next running, and is EXPO_PUBLIC_API_URL set to this machine's Network URL?`
+    );
+  }
 
   const data = (await res.json().catch(() => null)) as
     | (T & { error?: string })
