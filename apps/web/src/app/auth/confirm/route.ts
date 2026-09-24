@@ -7,11 +7,11 @@ import { safeAuthRedirectPath } from "@/lib/auth-redirect";
 import { createServiceClient } from "@/lib/supabase/service";
 
 /**
- * Email invite / OTP confirmation endpoint.
- * Expects: /auth/confirm?token_hash=...&type=invite&next=/invite/complete
+ * Invite / OTP confirmation. Sets the session on the redirect response so
+ * /invite/complete can show the set-password form.
  *
- * Use this with the Invite email template:
- * {{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=invite&next=/invite/complete
+ * Accept URL shape:
+ * /auth/confirm?token_hash=...&type=invite&next=/invite/complete
  */
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
@@ -27,6 +27,8 @@ export async function GET(request: Request) {
   }
 
   const cookieStore = await cookies();
+  let successRedirect = NextResponse.redirect(`${origin}${next}`);
+
   const supabase = createServerClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -36,13 +38,9 @@ export async function GET(request: Request) {
           return cookieStore.getAll();
         },
         setAll(cookiesToSet) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            );
-          } catch {
-            // ignore
-          }
+          cookiesToSet.forEach(({ name, value, options }) => {
+            successRedirect.cookies.set(name, value, options);
+          });
         },
       },
     }
@@ -72,5 +70,5 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.redirect(`${origin}${next}`);
+  return successRedirect;
 }

@@ -52,9 +52,7 @@ export function TeamInviteForm() {
     setEmail("");
     setFullName("");
     setSuccess(
-      data.email_sent
-        ? `Invite created for ${parsed.data.email}. Share the accept link below (email links may not work until the Supabase Invite template is updated).`
-        : `Invite created for ${parsed.data.email}. Share the accept link below.`
+      `Invite created for ${parsed.data.email}. Copy the accept link below and send it to them (opens the set-password page).`
     );
     if (data.accept_url) setAcceptUrl(data.accept_url);
     router.refresh();

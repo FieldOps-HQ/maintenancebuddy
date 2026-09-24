@@ -78,12 +78,14 @@ pnpm --filter mobile start  # Expo dev server
 
 1. An owner creates an account at `/signup` (organization name + email/password) and becomes the org admin.
 2. From **Team** in the dashboard, invite technicians by email (requires `SUPABASE_SERVICE_ROLE_KEY` in `apps/web/.env.local`).
-3. Share the **Copy link** accept URL with the technician (or use the email once the Invite template below is updated).
-4. Technician opens the link, sets a password on `/invite/complete`, then signs in on the mobile app.
+3. **Copy the accept link** shown after invite (or use **Copy link** on a pending invite) and send it to the technician. Opening that URL hits `/auth/confirm` → `/invite/complete` (set password).
+4. Technician sets a password, then signs in on the mobile app.
 
-#### Required: Invite email template (Supabase Dashboard)
+> Do not rely on Supabase’s default invite email for this flow. Server-side invites + the default PKCE email link break when opened on another device, and generating a copyable link invalidates that email token. Always share the **accept link** from the Team page.
 
-Default invite emails use a PKCE `?code=` redirect that cannot be completed from another device. Update **Authentication → Email Templates → Invite user** so the button uses `TokenHash`:
+#### Optional: Invite email template (Supabase Dashboard)
+
+If you later want Supabase to email invites, update **Authentication → Email Templates → Invite user** to use `TokenHash` (and do not also regenerate a second link for the same invite):
 
 ```html
 <h2>You've been invited</h2>

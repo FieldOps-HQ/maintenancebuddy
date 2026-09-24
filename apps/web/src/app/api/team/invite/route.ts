@@ -84,28 +84,8 @@ export async function POST(request: Request) {
     role: "technician",
   };
 
-  // Create auth user + send Supabase invite email (template should use TokenHash → /auth/confirm).
-  const { data: invited, error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
-    data: userMeta,
-    redirectTo: `${origin}/invite/complete`,
-  });
-
-  if (inviteError && !inviteError.message.toLowerCase().includes("already")) {
-    await auth.supabase.from("organization_invites").delete().eq("id", invite.id);
-    return NextResponse.json({ error: inviteError.message }, { status: 500 });
-  }
-
-  const userId = invited?.user?.id;
-  if (userId) {
-    await admin.auth.admin.updateUserById(userId, {
-      app_metadata: {
-        organization_id: profile.organization_id,
-        role: "technician",
-      },
-    });
-  }
-
-  // Fresh token_hash link that works without PKCE (share this if email link fails).
+  // Single token_hash link via generateLink. Do NOT also call inviteUserByEmail —
+  // that sends a second invite and invalidates this token (email click then fails).
   const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({
     type: "invite",
     email,
@@ -116,16 +96,20 @@ export async function POST(request: Request) {
   });
 
   if (linkError || !linkData?.properties?.hashed_token) {
-    return NextResponse.json({
-      invite,
-      accept_url: null,
-      email_sent: !inviteError,
-      error: linkError?.message ?? "Invite created but accept link could not be generated.",
-    });
+    await auth.supabase.from("organization_invites").delete().eq("id", invite.id);
+    return NextResponse.json(
+      {
+        error:
+          linkError?.message ??
+          "Invite could not be created (accept link generation failed).",
+      },
+      { status: 500 }
+    );
   }
 
-  if (linkData.user?.id) {
-    await admin.auth.admin.updateUserById(linkData.user.id, {
+  const userId = linkData.user?.id;
+  if (userId) {
+    await admin.auth.admin.updateUserById(userId, {
       app_metadata: {
         organization_id: profile.organization_id,
         role: "technician",
@@ -136,6 +120,6 @@ export async function POST(request: Request) {
   return NextResponse.json({
     invite,
     accept_url: buildAcceptUrl(origin, linkData.properties.hashed_token),
-    email_sent: !inviteError,
+    email_sent: false,
   });
 }
