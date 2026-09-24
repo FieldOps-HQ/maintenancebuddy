@@ -4,14 +4,175 @@ import { supabase } from "@/lib/supabase";
 import { addFieldUnit } from "@/lib/add-field-unit";
 import { buildUnitAccessStatusUpdates } from "@/lib/suite-visit-status";
 import { uploadVisitPhoto } from "@/lib/upload-photo";
-import { processOutbox, type OutboxHandlers } from "@/lib/outbox";
+import {
+  clearOutbox,
+  processOutbox,
+  type OutboxHandlers,
+  type OutboxItem,
+} from "@/lib/outbox";
 
 let syncing = false;
 let started = false;
+let lastSyncError: string | null = null;
+
+type SyncListener = (state: { error: string | null }) => void;
+const syncListeners = new Set<SyncListener>();
+
+function notifySyncListeners() {
+  for (const listener of syncListeners) {
+    listener({ error: lastSyncError });
+  }
+}
+
+export function getLastSyncError() {
+  return lastSyncError;
+}
+
+export function subscribeSyncError(listener: SyncListener): () => void {
+  syncListeners.add(listener);
+  listener({ error: lastSyncError });
+  return () => {
+    syncListeners.delete(listener);
+  };
+}
 
 async function assertNoError(error: { message: string } | null, fallback: string) {
   if (error) {
     throw new Error(error.message || fallback);
+  }
+}
+
+async function unitVisitHasPhoto(unitVisitId: string): Promise<boolean> {
+  const { data } = await supabase
+    .from("visit_photos")
+    .select("id")
+    .eq("hvac_unit_visit_id", unitVisitId)
+    .limit(1);
+  return (data?.length ?? 0) > 0;
+}
+
+/** True when the server already reflects this queued change — safe to drop automatically. */
+async function isOutboxItemSatisfied(item: OutboxItem): Promise<boolean> {
+  try {
+    switch (item.type) {
+      case "upload_photo": {
+        const unitVisitId = item.payload.unitVisitId as string | undefined;
+        const base64 = item.payload.base64 as string | undefined;
+        if (!unitVisitId || !base64) return true;
+        const { data: visit } = await supabase
+          .from("hvac_unit_visits")
+          .select("id")
+          .eq("id", unitVisitId)
+          .maybeSingle();
+        if (!visit) return true;
+        return unitVisitHasPhoto(unitVisitId);
+      }
+      case "update_unit_visit": {
+        const unitVisitId = item.payload.unitVisitId as string | undefined;
+        const updates = item.payload.updates as Record<string, unknown> | undefined;
+        if (!unitVisitId) return true;
+        const { data: visit } = await supabase
+          .from("hvac_unit_visits")
+          .select("status")
+          .eq("id", unitVisitId)
+          .maybeSingle();
+        if (!visit) return true;
+        if (updates?.status && visit.status === updates.status) return true;
+        return false;
+      }
+      case "update_suite_unit_visits": {
+        const suiteVisitId = item.payload.suiteVisitId as string | undefined;
+        const status = item.payload.status as string | undefined;
+        if (!suiteVisitId || !status) return false;
+        const { data: units } = await supabase
+          .from("hvac_unit_visits")
+          .select("status")
+          .eq("suite_visit_id", suiteVisitId);
+        if (!units || units.length === 0) return true;
+        return units.every((u) => u.status === status);
+      }
+      case "complete_unit_visit": {
+        const unitVisitId = item.payload.unitVisitId as string | undefined;
+        const updates = item.payload.updates as Record<string, unknown> | undefined;
+        const photo = item.payload.photo as { base64?: string } | null | undefined;
+        if (!unitVisitId) return true;
+        const { data: visit } = await supabase
+          .from("hvac_unit_visits")
+          .select("status")
+          .eq("id", unitVisitId)
+          .maybeSingle();
+        if (!visit) return true;
+        const targetStatus = updates?.status as string | undefined;
+        const statusOk = targetStatus
+          ? visit.status === targetStatus
+          : visit.status !== "pending";
+        if (!statusOk) return false;
+        if (photo?.base64) {
+          return unitVisitHasPhoto(unitVisitId);
+        }
+        return true;
+      }
+      case "replace_deficiencies": {
+        const unitVisitId = item.payload.unitVisitId as string | undefined;
+        const deficiencies = (item.payload.deficiencies as unknown[]) ?? [];
+        if (!unitVisitId) return true;
+        const { data: visit } = await supabase
+          .from("hvac_unit_visits")
+          .select("id")
+          .eq("id", unitVisitId)
+          .maybeSingle();
+        if (!visit) return true;
+        const { count } = await supabase
+          .from("deficiencies")
+          .select("id", { count: "exact", head: true })
+          .eq("hvac_unit_visit_id", unitVisitId);
+        if (deficiencies.length === 0) return (count ?? 0) === 0;
+        return (count ?? 0) >= deficiencies.length;
+      }
+      case "create_deficiency":
+      case "add_suite":
+      case "add_hvac_unit":
+        return false;
+      default:
+        return false;
+    }
+  } catch {
+    return false;
+  }
+}
+
+async function shouldAbandonOutboxItem(item: OutboxItem, _error: unknown): Promise<boolean> {
+  try {
+    if (item.type === "upload_photo") {
+      const unitVisitId = item.payload.unitVisitId as string | undefined;
+      if (!unitVisitId) return true;
+      const { data: visit } = await supabase
+        .from("hvac_unit_visits")
+        .select("status")
+        .eq("id", unitVisitId)
+        .maybeSingle();
+      // Visit already finished — don't leave a photo retry stuck on the badge forever.
+      return Boolean(visit && visit.status !== "pending");
+    }
+
+    if (item.type === "complete_unit_visit") {
+      const unitVisitId = item.payload.unitVisitId as string | undefined;
+      const updates = item.payload.updates as Record<string, unknown> | undefined;
+      if (!unitVisitId) return true;
+      const { data: visit } = await supabase
+        .from("hvac_unit_visits")
+        .select("status")
+        .eq("id", unitVisitId)
+        .maybeSingle();
+      if (!visit) return true;
+      const targetStatus = updates?.status as string | undefined;
+      // Status already saved on server; drop the queue item so sync doesn't stay stuck on photo.
+      return targetStatus ? visit.status === targetStatus : visit.status !== "pending";
+    }
+
+    return false;
+  } catch {
+    return false;
   }
 }
 
@@ -49,6 +210,7 @@ const handlers: OutboxHandlers = {
       unitId: string;
       base64: string;
     };
+    if (await unitVisitHasPhoto(unitVisitId)) return;
     await uploadVisitPhoto(
       `data:image/jpeg;base64,${base64}`,
       maintenanceId,
@@ -118,13 +280,15 @@ const handlers: OutboxHandlers = {
     await handlers.updateUnitVisit({ unitVisitId, updates });
     await handlers.replaceDeficiencies({ unitVisitId, deficiencies });
     if (photo?.base64) {
-      await handlers.uploadPhoto({
-        unitVisitId,
-        maintenanceId: photo.maintenanceId,
-        suiteId: photo.suiteId,
-        unitId: photo.unitId,
-        base64: photo.base64,
-      });
+      if (!(await unitVisitHasPhoto(unitVisitId))) {
+        await handlers.uploadPhoto({
+          unitVisitId,
+          maintenanceId: photo.maintenanceId,
+          suiteId: photo.suiteId,
+          unitId: photo.unitId,
+          base64: photo.base64,
+        });
+      }
     }
   },
 
@@ -169,17 +333,38 @@ const handlers: OutboxHandlers = {
   },
 };
 
-export async function runOutboxSync(): Promise<{ processed: number; remaining: number }> {
+export async function runOutboxSync(): Promise<{
+  processed: number;
+  remaining: number;
+  error: string | null;
+}> {
   if (syncing) {
-    return { processed: 0, remaining: -1 };
+    return { processed: 0, remaining: -1, error: lastSyncError };
   }
 
   syncing = true;
   try {
-    return await processOutbox(handlers);
+    const result = await processOutbox(
+      handlers,
+      isOutboxItemSatisfied,
+      shouldAbandonOutboxItem
+    );
+    lastSyncError = result.remaining > 0 ? result.error : null;
+    notifySyncListeners();
+    return result;
+  } catch (err) {
+    lastSyncError = err instanceof Error ? err.message : "Sync failed";
+    notifySyncListeners();
+    return { processed: 0, remaining: -1, error: lastSyncError };
   } finally {
     syncing = false;
   }
+}
+
+export async function discardPendingOutbox() {
+  await clearOutbox();
+  lastSyncError = null;
+  notifySyncListeners();
 }
 
 export function startOutboxSyncListener() {

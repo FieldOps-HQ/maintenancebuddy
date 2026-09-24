@@ -32,7 +32,7 @@ import { supabase } from "@/lib/supabase";
 import { addToOutbox, subscribeOutboxCount } from "@/lib/outbox";
 import { addFieldUnit } from "@/lib/add-field-unit";
 import { applyAllUnitsAccessStatus } from "@/lib/suite-visit-status";
-import { runOutboxSync } from "@/lib/sync";
+import { discardPendingOutbox, runOutboxSync, subscribeSyncError } from "@/lib/sync";
 import { colors, radius } from "@/lib/theme";
 import { ScreenHeader } from "@/components/screen-header";
 
@@ -95,6 +95,7 @@ export default function SuiteGridScreen() {
   const [addUnitForm, setAddUnitForm] = useState<AddUnitForm>(emptyAddUnitForm);
   const [addingUnit, setAddingUnit] = useState(false);
   const [pendingSync, setPendingSync] = useState(0);
+  const [syncError, setSyncError] = useState<string | null>(null);
   const [filterSizes, setFilterSizes] = useState<FilterSizeOption[]>([]);
   const [filterPickerOpen, setFilterPickerOpen] = useState(false);
   const [contacts, setContacts] = useState<BuildingContact[]>([]);
@@ -196,6 +197,7 @@ export default function SuiteGridScreen() {
   }, [maintenanceId]);
 
   useEffect(() => subscribeOutboxCount(setPendingSync), []);
+  useEffect(() => subscribeSyncError(({ error }) => setSyncError(error)), []);
 
   useFocusEffect(
     useCallback(() => {
@@ -207,11 +209,48 @@ export default function SuiteGridScreen() {
   async function handleRefresh() {
     setRefreshing(true);
     try {
-      await runOutboxSync();
+      const result = await runOutboxSync();
       await loadData();
+      if (result.error && result.remaining > 0) {
+        Alert.alert("Sync pending", result.error);
+      }
     } finally {
       setRefreshing(false);
     }
+  }
+
+  function handlePendingSyncPress() {
+    Alert.alert(
+      `${pendingSync} change${pendingSync === 1 ? "" : "s"} waiting to sync`,
+      syncError
+        ? `Last error:\n${syncError}\n\nRetry sync, or discard if these changes are already saved / no longer needed.`
+        : "Pull to refresh to retry, or discard if nothing should be pending.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Retry sync",
+          onPress: () => {
+            void (async () => {
+              const result = await runOutboxSync();
+              await loadData();
+              if (result.error && result.remaining > 0) {
+                Alert.alert("Still pending", result.error);
+              }
+            })();
+          },
+        },
+        {
+          text: "Discard queue",
+          style: "destructive",
+          onPress: () => {
+            void (async () => {
+              await discardPendingOutbox();
+              await loadData();
+            })();
+          },
+        },
+      ]
+    );
   }
 
   const filtered = visits.filter((v) =>
@@ -506,7 +545,11 @@ export default function SuiteGridScreen() {
           </TouchableOpacity>
         ) : null}
         {pendingSync > 0 ? (
-          <Text style={styles.syncBadge}>{pendingSync} pending sync</Text>
+          <TouchableOpacity onPress={handlePendingSyncPress}>
+            <Text style={styles.syncBadge}>
+              {pendingSync} pending sync{syncError ? " — tap for details" : ""}
+            </Text>
+          </TouchableOpacity>
         ) : null}
         <View style={styles.headerActions}>
           <TouchableOpacity style={styles.secondaryButton} onPress={() => setShowContacts(true)}>

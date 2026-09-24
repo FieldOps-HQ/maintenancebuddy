@@ -66,6 +66,10 @@ export async function removeFromOutbox(id: string) {
   await saveOutbox(outbox.filter((i) => i.id !== id));
 }
 
+export async function clearOutbox() {
+  await saveOutbox([]);
+}
+
 export type OutboxHandlers = {
   updateUnitVisit: (payload: Record<string, unknown>) => Promise<void>;
   updateSuiteUnitVisits: (payload: Record<string, unknown>) => Promise<void>;
@@ -77,15 +81,30 @@ export type OutboxHandlers = {
   addHvacUnit: (payload: Record<string, unknown>) => Promise<void>;
 };
 
-export async function processOutbox(handlers: OutboxHandlers): Promise<{
+export type OutboxSatisfiedCheck = (item: OutboxItem) => Promise<boolean>;
+export type OutboxAbandonCheck = (item: OutboxItem, error: unknown) => Promise<boolean>;
+
+export async function processOutbox(
+  handlers: OutboxHandlers,
+  isSatisfied?: OutboxSatisfiedCheck,
+  shouldAbandon?: OutboxAbandonCheck
+): Promise<{
   processed: number;
   remaining: number;
+  error: string | null;
 }> {
   const outbox = await getOutbox();
   let processed = 0;
+  let error: string | null = null;
 
   for (const item of outbox) {
     try {
+      if (isSatisfied && (await isSatisfied(item))) {
+        await removeFromOutbox(item.id);
+        processed += 1;
+        continue;
+      }
+
       switch (item.type) {
         case "update_unit_visit":
           await handlers.updateUnitVisit(item.payload);
@@ -116,16 +135,38 @@ export async function processOutbox(handlers: OutboxHandlers): Promise<{
       }
       await removeFromOutbox(item.id);
       processed += 1;
-    } catch {
-      // Keep failed item and stop so order is preserved for dependent work.
+    } catch (err) {
+      if (isSatisfied) {
+        try {
+          if (await isSatisfied(item)) {
+            await removeFromOutbox(item.id);
+            processed += 1;
+            continue;
+          }
+        } catch {
+          // fall through
+        }
+      }
+      if (shouldAbandon) {
+        try {
+          if (await shouldAbandon(item, err)) {
+            await removeFromOutbox(item.id);
+            processed += 1;
+            continue;
+          }
+        } catch {
+          // fall through
+        }
+      }
+      error = err instanceof Error ? err.message : "Sync failed";
       break;
     }
   }
 
-  return {
-    processed,
-    remaining: await getOutboxCount(),
-  };
+  const remaining = await getOutboxCount();
+  notifyListeners(remaining);
+
+  return { processed, remaining, error };
 }
 
 export function getDeficienciesFromAnswers(answers: {
