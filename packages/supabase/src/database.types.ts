@@ -317,6 +317,7 @@ export type Database = {
           end_date: string;
           status: "scheduled" | "in_progress" | "completed" | "cancelled";
           notes: string | null;
+          completed_at: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -327,6 +328,7 @@ export type Database = {
           end_date: string;
           status?: "scheduled" | "in_progress" | "completed" | "cancelled";
           notes?: string | null;
+          completed_at?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -337,6 +339,7 @@ export type Database = {
           end_date?: string;
           status?: "scheduled" | "in_progress" | "completed" | "cancelled";
           notes?: string | null;
+          completed_at?: string | null;
           created_at?: string;
           updated_at?: string;
         };

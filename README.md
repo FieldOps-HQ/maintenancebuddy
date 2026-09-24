@@ -107,12 +107,16 @@ Also add these Redirect URLs: `http://localhost:3000/auth/confirm`, `http://loca
 
 ## Production deploy
 
-1. **Database** — Apply all migrations through `20250828000020_deploy_security_hardening.sql` (`supabase db push` or SQL Editor in filename order).
+1. **Database** — Apply all migrations through `20250828000022_fix_rls_helper_performance.sql` (`supabase db push` or SQL Editor in filename order). Enable the **pg_cron** extension in Dashboard → Database → Extensions if the purge job does not schedule automatically.
 2. **Auth URLs** — Set Site URL to your production web origin. Add redirect URLs for `https://YOUR_DOMAIN/**`, `/auth/callback`, `/auth/confirm`, `/invite/complete`, and mobile schemes as needed. Update the Invite email template to use `TokenHash` (same HTML as above, with production Site URL).
 3. **Web (e.g. Vercel)** — Set `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` (server-only). Deploy `apps/web`.
 4. **Mobile (EAS / store builds)** — Set `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY`. Build with EAS; do not ship Expo Go for production technicians.
 5. **Do not seed production** — Skip `ALLOW_SEED=1 pnpm seed` on live projects.
 6. **Smoke test** — Signup → invite tech → create maintenance → complete a suite (online + one offline sync) → download PDF with org logo → confirm completed jobs are locked for technicians.
+
+### Photo retention
+
+Visit photos for a maintenance are deleted automatically once that maintenance has remained **completed for 3 months** (`completed_at`). A daily `pg_cron` job (`purge-expired-visit-photos`, 04:00 UTC) removes matching `visit-photos` storage objects and `visit_photos` rows. Deficiencies and visit records are kept. Reopening a completed job clears `completed_at` and resets the retention clock.
 
 ## Project Structure
 

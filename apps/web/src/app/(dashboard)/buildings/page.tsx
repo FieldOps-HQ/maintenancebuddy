@@ -14,18 +14,36 @@ import { PageHeader } from "@/components/layout/page-header";
 import { ChevronRight, Plus } from "lucide-react";
 import { BuildingForm } from "@/components/buildings/building-form";
 
-type CountEmbed = { count: number }[] | null;
-
-function readCount(value: CountEmbed): number {
-  return value?.[0]?.count ?? 0;
-}
-
 export default async function BuildingsPage() {
   const supabase = await createClient();
-  const { data: buildings } = await supabase
+  const { data: buildings, error } = await supabase
     .from("buildings")
-    .select("*, suites(count), building_contacts(count)")
+    .select("id, name, street_number, street, city, postal_code")
     .order("name");
+
+  const buildingIds = (buildings ?? []).map((b) => b.id);
+  const suiteCountByBuilding = new Map<string, number>();
+  const contactCountByBuilding = new Map<string, number>();
+
+  if (buildingIds.length > 0) {
+    const [{ data: suites }, { data: contacts }] = await Promise.all([
+      supabase.from("suites").select("building_id").in("building_id", buildingIds),
+      supabase.from("building_contacts").select("building_id").in("building_id", buildingIds),
+    ]);
+
+    for (const row of suites ?? []) {
+      suiteCountByBuilding.set(
+        row.building_id,
+        (suiteCountByBuilding.get(row.building_id) ?? 0) + 1
+      );
+    }
+    for (const row of contacts ?? []) {
+      contactCountByBuilding.set(
+        row.building_id,
+        (contactCountByBuilding.get(row.building_id) ?? 0) + 1
+      );
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -33,6 +51,14 @@ export default async function BuildingsPage() {
         title="Buildings"
         description="Manage buildings, suites, and contacts"
       />
+
+      {error ? (
+        <Card>
+          <CardContent className="py-8 text-center text-sm text-red-600">
+            Could not load buildings: {error.message}
+          </CardContent>
+        </Card>
+      ) : null}
 
       <div className="grid gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-1">
@@ -63,8 +89,8 @@ export default async function BuildingsPage() {
               </TableHeader>
               <TableBody>
                 {buildings.map((building) => {
-                  const suiteCount = readCount(building.suites as CountEmbed);
-                  const contactCount = readCount(building.building_contacts as CountEmbed);
+                  const suiteCount = suiteCountByBuilding.get(building.id) ?? 0;
+                  const contactCount = contactCountByBuilding.get(building.id) ?? 0;
 
                   return (
                     <TableRow key={building.id} className="group">

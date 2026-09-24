@@ -106,6 +106,7 @@ export interface Maintenance {
   end_date: string;
   status: MaintenanceStatus;
   notes: string | null;
+  completed_at: string | null;
   created_at: string;
   updated_at: string;
 }

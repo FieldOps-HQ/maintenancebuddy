@@ -26,7 +26,7 @@ const DONE_STATUSES = new Set(["completed", "blocked_unit", "no_access"]);
 
 export default async function MaintenancesPage() {
   const supabase = await createClient();
-  const { data: maintenances } = await supabase
+  const { data: maintenances, error } = await supabase
     .from("maintenances")
     .select("id, start_date, end_date, status, building:buildings(name)")
     .order("start_date", { ascending: false });
@@ -62,6 +62,14 @@ export default async function MaintenancesPage() {
           </Link>
         }
       />
+
+      {error ? (
+        <Card>
+          <CardContent className="py-8 text-center text-sm text-red-600">
+            Could not load maintenances: {error.message}
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card className="overflow-hidden">
         {!maintenances?.length ? (
