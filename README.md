@@ -109,26 +109,28 @@ Also add these Redirect URLs: `http://localhost:3000/auth/confirm`, `http://loca
 
 ## Production deploy
 
-### Phase 1 — Web portal (Vercel + clean DB)
+### Phase 1 — Web portal (AWS + clean DB)
+
+Build the web app from the monorepo root with `pnpm --filter web build`, then run it with `pnpm --filter web start` (or the equivalent on your AWS host).
 
 1. **Database** — Apply migrations through `20250828000023_r2_visit_photos_purge.sql`. Wipe demo data before go-live (keep schema). Do not run `ALLOW_SEED=1 pnpm seed` on production.
-2. **Vercel** — Prefer claiming a temporary deploy or importing the GitHub repo (monorepo root; `vercel.json` at repo root runs `pnpm --filter web build`). Env vars (Production):
+2. **Environment** — Set these on the AWS host (and in `apps/web/.env.local` for local dev):
    - `NEXT_PUBLIC_SUPABASE_URL`
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
    - `SUPABASE_SERVICE_ROLE_KEY` (server-only; required for invites / admin APIs)
    - `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET` (visit photos)
-   - `CRON_SECRET` (protects daily photo purge cron)
-3. Deploy — default `https://<project>.vercel.app` URL (no custom domain required). CLI from repo root: `npx vercel deploy` (after `vercel login`), or `npx vercel deploy --temporary` for a short-lived anonymous preview you can [claim](https://vercel.com/docs/cli/deploy#temporary).
-4. **Auth URLs** — In Supabase → Authentication → URL Configuration (replace with your real Vercel host):
-   - Site URL: `https://YOUR-APP.vercel.app`
-   - Redirect URLs: `https://YOUR-APP.vercel.app/**`, `…/auth/callback`, `…/auth/confirm`, `…/invite/complete`
+   - `CRON_SECRET` (protects the daily photo purge endpoint)
+3. **Auth URLs** — In Supabase → Authentication → URL Configuration (replace with your real app host):
+   - Site URL: `https://YOUR-APP-HOST`
+   - Redirect URLs: `https://YOUR-APP-HOST/**`, `…/auth/callback`, `…/auth/confirm`, `…/invite/complete`
+4. **Photo purge** — Schedule a daily call to `GET /api/cron/purge-visit-photos` with `Authorization: Bearer <CRON_SECRET>` (for example EventBridge at 04:00 UTC).
 5. **Smoke test** — Open `/signup`, create your org, add a building, schedule a maintenance, download a PDF.
 
 ### Cloudflare R2 (visit photos)
 
 1. Create a private R2 bucket (e.g. `visit-photos`).
 2. Create an R2 API token with Object Read & Write on that bucket.
-3. Set the R2 env vars on Vercel and in `apps/web/.env.local`.
+3. Set the R2 env vars on the AWS host and in `apps/web/.env.local`.
 4. Mobile needs `EXPO_PUBLIC_API_URL` pointing at the web origin (presigned upload/download).
 
 Organization logos still use Supabase Storage (`organization-logos`).
@@ -140,7 +142,7 @@ Organization logos still use Supabase Storage (`organization-logos`).
 
 ### Photo retention
 
-Visit photos live in **Cloudflare R2**. After a maintenance has stayed **completed for 3 months** (`completed_at`), a daily Vercel Cron (`/api/cron/purge-visit-photos`, 04:00 UTC) deletes matching R2 objects and `visit_photos` rows. Deficiencies and visit records are kept. Reopening a completed job clears `completed_at` and resets the retention clock. Mobile compresses captures (max edge 1600px, JPEG ~0.7) before upload.
+Visit photos live in **Cloudflare R2**. After a maintenance has stayed **completed for 3 months** (`completed_at`), a daily call to `GET /api/cron/purge-visit-photos` (04:00 UTC) deletes matching R2 objects and `visit_photos` rows. Deficiencies and visit records are kept. Reopening a completed job clears `completed_at` and resets the retention clock. Mobile compresses captures (max edge 1600px, JPEG ~0.7) before upload.
 
 ## Project Structure
 
